@@ -1,15 +1,29 @@
 {% extends 'base.html' %}
 {% block content %}
-
 <div class="row justify-content-center">
   <div class="col-md-4">
-    <h3>Login</h3>
-    <form method="post">
-      <input class="form-control mb-2" name="username" placeholder="Utente">
-      <input class="form-control mb-2" type="password" name="password" placeholder="Password">
-      <button class="btn btn-primary w-100">Accedi</button>
-    </form>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h3 class="mb-3">{{ app_settings.company_name if app_settings else 'Accesso' }}</h3>
+        {% if app_settings and app_settings.logo_path %}
+        <div class="text-center mb-3">
+          <img src="{{ url_for('static', filename=app_settings.logo_path) }}" style="max-height:80px; max-width:100%;">
+        </div>
+        {% endif %}
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label">Utente</label>
+            <input class="form-control" name="username" value="admin" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input class="form-control" type="password" name="password" required>
+          </div>
+          <button class="btn btn-primary w-100">Entra</button>
+        </form>
+        <div class="mt-3 text-muted small">Utente predefinito: admin</div>
+      </div>
+    </div>
   </div>
 </div>
-
 {% endblock %}
