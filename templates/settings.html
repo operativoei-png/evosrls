@@ -1,1 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4>Impostazioni programma</h4>
+        <form method="post" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label">Nome azienda</label>
+            <input class="form-control" name="company_name" value="{{ settings_obj.company_name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Prefisso bolla</label>
+            <input class="form-control" name="bolla_prefix" value="{{ settings_obj.bolla_prefix }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Logo</label>
+            <input class="form-control" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg">
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" value="1" id="removeLogo" name="remove_logo">
+            <label class="form-check-label" for="removeLogo">Rimuovi logo attuale</label>
+          </div>
+          <button class="btn btn-primary">Salva impostazioni</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4>Anteprima</h4>
+        <div class="mb-3"><strong>{{ settings_obj.company_name }}</strong></div>
+        {% if settings_obj.logo_path %}
+          <img src="{{ url_for('static', filename=settings_obj.logo_path) }}" style="max-height:120px; max-width:100%;">
+        {% else %}
+          <div class="text-muted">Nessun logo caricato.</div>
+        {% endif %}
+        <div class="mt-3 text-muted small">Qui puoi cambiare logo, nome azienda e prefisso bolla.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
