@@ -1,1 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h3>{{ tech.name }}</h3>
+    <div class="text-muted">{{ tech.phone }} {% if tech.notes %}• {{ tech.notes }}{% endif %}</div>
+  </div>
+</div>
 
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>Attrezzature</h5>
+        <ul class="mb-0">
+          {% for t in tools %}
+            <li>{{ t.code }} - {{ t.description }} {% if t.serial %}({{ t.serial }}){% endif %}</li>
+          {% else %}
+            <li>Nessuna attrezzatura.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>Mezzo assegnato</h5>
+        {% if van %}
+          <div>{{ van.plate }} - {{ van.model }}</div>
+        {% else %}
+          <div>Nessun mezzo assegnato.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>Materiali in carico</h5>
+        <div class="fs-4 fw-bold">{{ mobile_items|length }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+  <div class="card-body">
+    <h4>Magazzino viaggiante</h4>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Categoria</th><th>Codice</th><th>Descrizione</th><th>Seriale</th><th>Committente</th><th>Data</th></tr></thead>
+        <tbody>
+        {% for i in mobile_items %}
+          <tr>
+            <td>{{ i.category }}</td>
+            <td>{{ i.code }}</td>
+            <td>{{ i.description }}</td>
+            <td>{{ i.serial or '-' }}</td>
+            <td>{{ i.last_client or '-' }}</td>
+            <td>{{ i.last_transfer_date or '-' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6">Nessun materiale assegnato.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
