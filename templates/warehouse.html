@@ -2,15 +2,69 @@
 {% block content %}
 <div class="row g-4">
   <div class="col-lg-4">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h4>Nuovo materiale</h4>
+        <form method="post">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Codice</label>
+              <input class="form-control" name="code" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Categoria</label>
+              <input class="form-control" name="category" value="materiale">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Descrizione</label>
+              <input class="form-control" name="description" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label">Serializzato</label>
+              <select class="form-select" name="serialized">
+                <option value="no">No</option>
+                <option value="si">Sì</option>
+              </select>
+            </div>
+            <div class="col-8">
+              <label class="form-label">Seriale</label>
+              <input class="form-control" name="serial">
+            </div>
+            <div class="col-4">
+              <label class="form-label">Quantità</label>
+              <input class="form-control" name="quantity" value="1">
+            </div>
+            <div class="col-4">
+              <label class="form-label">Unità</label>
+              <input class="form-control" name="unit" value="pz">
+            </div>
+            <div class="col-4">
+              <label class="form-label">Scorta min.</label>
+              <input class="form-control" name="min_stock" value="0">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Committente predefinita</label>
+              <input class="form-control" name="client_default">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Note</label>
+              <input class="form-control" name="notes">
+            </div>
+          </div>
+          <button class="btn btn-primary mt-3">Salva</button>
+        </form>
+      </div>
+    </div>
+
     <div class="card shadow-sm">
       <div class="card-body">
-        <h4>Nuovo tecnico</h4>
-        <form method="post">
-          <div class="mb-3"><label class="form-label">Nome</label><input class="form-control" name="name" required></div>
-          <div class="mb-3"><label class="form-label">Telefono</label><input class="form-control" name="phone"></div>
-          <div class="mb-3"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
-          <button class="btn btn-primary">Salva</button>
+        <h4>Import / Export</h4>
+        <form method="post" action="{{ url_for('import_general') }}" enctype="multipart/form-data">
+          <label class="form-label">Importa Excel magazzino generale</label>
+          <input class="form-control mb-2" type="file" name="file" accept=".xlsx" required>
+          <button class="btn btn-outline-primary">Importa</button>
         </form>
+        <a class="btn btn-outline-secondary mt-3" href="{{ url_for('export_general') }}">Esporta magazzino generale</a>
       </div>
     </div>
   </div>
@@ -18,27 +72,33 @@
   <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h4 class="mb-0">Tecnici</h4>
-          <form class="d-flex gap-2" method="get">
-            <input class="form-control" name="q" value="{{ q }}" placeholder="Cerca tecnico">
-            <button class="btn btn-outline-primary">Cerca</button>
-          </form>
-        </div>
-        <div class="small text-muted mb-2">Totale tecnici registrati: {{ total_count }}</div>
+        <h4>Magazzino generale</h4>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Nome</th><th>Telefono</th><th>Note</th><th>Dettaglio</th></tr></thead>
-            <tbody>
-            {% for t in technicians %}
+            <thead>
               <tr>
-                <td>{{ t.name }}</td>
-                <td>{{ t.phone }}</td>
-                <td>{{ t.notes }}</td>
-                <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('technician_detail', tech_id=t.id) }}">Scheda</a></td>
+                <th>Codice</th>
+                <th>Categoria</th>
+                <th>Descrizione</th>
+                <th>Seriale</th>
+                <th>Q.tà</th>
+                <th>Committente predef.</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for i in items %}
+              <tr>
+                <td>{{ i.code }}</td>
+                <td>{{ i.category }}</td>
+                <td>{{ i.description }}</td>
+                <td>{{ i.serial or '-' }}</td>
+                <td>{{ i.quantity }} {{ i.unit }}</td>
+                <td>{{ i.client_default or '-' }}</td>
               </tr>
             {% else %}
-              <tr><td colspan="4">Nessun tecnico.</td></tr>
+              <tr>
+                <td colspan="6">Nessun materiale.</td>
+              </tr>
             {% endfor %}
             </tbody>
           </table>
