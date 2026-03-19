@@ -1,1 +1,35 @@
-
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h3>{{ transfer.bolla_no }}</h3>
+    <p>
+      <strong>Tipo:</strong> {{ 'Consegna' if transfer.transfer_type == 'out' else 'Rientro' }}<br>
+      <strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}<br>
+      <strong>Tecnico:</strong> {{ transfer.technician.name if transfer.technician else '' }}<br>
+      <strong>Committente:</strong> {{ transfer.client }}<br>
+      <strong>Commessa:</strong> {{ transfer.job }}<br>
+      <strong>Note:</strong> {{ transfer.notes or '-' }}
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Categoria</th><th>Codice</th><th>Descrizione</th><th>Seriale</th><th>Q.tà</th></tr></thead>
+        <tbody>
+        {% for i in transfer.items %}
+          <tr>
+            <td>{{ i.category }}</td>
+            <td>{{ i.code }}</td>
+            <td>{{ i.description }}</td>
+            <td>{{ i.serial or '-' }}</td>
+            <td>{{ i.quantity }} {{ i.unit }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5">Nessuna riga.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('transfers') }}">Torna alle bolle</a>
+  </div>
+</div>
+{% endblock %}
