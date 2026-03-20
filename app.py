@@ -336,7 +336,7 @@ def register_routes(app):
 
     @app.route("/transfers", methods=["GET", "POST"])
     @login_required
-        def transfers():
+    def transfers():
         technicians = Technician.query.order_by(Technician.name.asc()).limit(1000).all()
         central_items = WarehouseItem.query.filter(
             WarehouseItem.assigned_to.is_(None)
@@ -395,8 +395,12 @@ def register_routes(app):
             db.session.flush()
 
             for item in found:
-                # SERIALIZZATI: spostamento diretto al tecnico
+                # quantità richiesta da form: qty_<id>
+                qty_requested = request.form.get(f"qty_{item.id}", "").strip()
+                qty_requested = int(qty_requested) if qty_requested.isdigit() else 1
+
                 if item.serialized:
+                    # serializzato = spostamento diretto
                     item.assigned_to = tech_id
                     item.last_transfer_date = now_it()
                     item.last_client = client
@@ -410,20 +414,23 @@ def register_routes(app):
                             code=item.code,
                             description=item.description,
                             serial=item.serial,
-                            quantity=item.quantity,
+                            quantity=1,
                             unit=item.unit,
                         )
                     )
-
-                # NON SERIALIZZATI: spostamento totale della riga al tecnico
                 else:
+                    # non serializzato = quantità parziale
+                    qty_to_assign = max(1, qty_requested)
+                    if qty_to_assign > item.quantity:
+                        qty_to_assign = item.quantity
+
                     mobile_item = WarehouseItem(
                         code=item.code,
                         category=item.category,
                         description=item.description,
                         serialized=False,
                         serial="",
-                        quantity=item.quantity,
+                        quantity=qty_to_assign,
                         unit=item.unit,
                         min_stock=item.min_stock,
                         notes=item.notes,
@@ -443,12 +450,15 @@ def register_routes(app):
                             code=item.code,
                             description=item.description,
                             serial="",
-                            quantity=item.quantity,
+                            quantity=qty_to_assign,
                             unit=item.unit,
                         )
                     )
 
-                    db.session.delete(item)
+                    # scala dal centrale
+                    item.quantity -= qty_to_assign
+                    if item.quantity <= 0:
+                        db.session.delete(item)
 
             db.session.commit()
             flash(f"Bolla {tr.bolla_no} creata con {len(found)} righe.", "success")
@@ -463,6 +473,11 @@ def register_routes(app):
             transfers=transfers,
             title="Bolle",
         )
+
+    @app.route("/transfer/<int:transfer_id>")
+    @login_required
+    def transfer_detail(transfer_id):
+        return render_template(
             "transfer_detail.html",
             transfer=Transfer.query.get_or_404(transfer_id),
             title="Bolla",
