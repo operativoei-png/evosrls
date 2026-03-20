@@ -1,93 +1,55 @@
-{% extends 'base.html' %}
-{% block content %}
-<div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <h3>{{ tech.name }}</h3>
-    <div class="text-muted">{{ tech.phone or '-' }} {% if tech.notes %}• {{ tech.notes }}{% endif %}</div>
-  </div>
-</div>
+@app.route("/technician/<int:tech_id>", methods=["GET", "POST"])
+@login_required
+def technician_detail(tech_id):
+    tech = Technician.query.get_or_404(tech_id)
 
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>Attrezzature assegnate</h5>
-        <ul class="mb-0">
-          {% for t in tools %}
-            <li>{{ t.code }} - {{ t.description }} {% if t.serial %}({{ t.serial }}){% endif %} - {{ t.status }}</li>
-          {% else %}
-            <li>Nessuna attrezzatura assegnata.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
+    if request.method == "POST":
+        form_type = request.form.get("form_type")
 
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>Mezzo assegnato</h5>
-        {% if van %}
-          <div><strong>{{ van.plate }}</strong> - {{ van.model }}</div>
-          <div class="text-muted">{{ van.status }}</div>
-        {% else %}
-          <div>Nessun mezzo assegnato.</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+        if form_type == "pos":
+            db.session.add(
+                TechnicianPos(
+                    technician_id=tech.id,
+                    provider=request.form.get("provider", "").strip(),
+                    pos_code=request.form.get("pos_code", "").strip(),
+                    notes=request.form.get("notes", "").strip(),
+                )
+            )
+            db.session.commit()
+            flash("POS salvato.", "success")
+            return redirect(url_for("technician_detail", tech_id=tech.id))
 
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>Addebiti</h5>
-        <ul class="mb-0">
-          {% for c in charges %}
-            <li>{{ c.description }} - {{ '%.2f'|format(c.amount) }} € - {{ c.status }}</li>
-          {% else %}
-            <li>Nessun addebito.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
+        if form_type == "course":
+            db.session.add(
+                TechnicianCourse(
+                    technician_id=tech.id,
+                    course_name=request.form.get("course_name", "").strip(),
+                    expiry_date=request.form.get("expiry_date", "").strip(),
+                    notes=request.form.get("notes", "").strip(),
+                )
+            )
+            db.session.commit()
+            flash("Corso salvato.", "success")
+            return redirect(url_for("technician_detail", tech_id=tech.id))
 
-<div class="card shadow-sm mt-4">
-  <div class="card-body">
-    <h4>Materiale assegnato / Magazzino viaggiante</h4>
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Categoria</th>
-            <th>Codice</th>
-            <th>Descrizione</th>
-            <th>Seriale</th>
-            <th>Quantità</th>
-            <th>Committente</th>
-            <th>Commessa</th>
-            <th>Data consegna</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for i in mobile_items %}
-          <tr>
-            <td>{{ i.category }}</td>
-            <td>{{ i.code }}</td>
-            <td>{{ i.description }}</td>
-            <td>{{ i.serial or '-' }}</td>
-            <td>{{ i.quantity }} {{ i.unit }}</td>
-            <td>{{ i.last_client or '-' }}</td>
-            <td>{{ i.last_job or '-' }}</td>
-            <td>{{ i.last_transfer_date or '-' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="8">Nessun materiale assegnato.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-{% endblock %}
+    mobile_items = WarehouseItem.query.filter_by(
+        assigned_to=tech.id
+    ).order_by(WarehouseItem.id.desc()).all()
+
+    tools = Tool.query.filter_by(assigned_to=tech.id).order_by(Tool.id.desc()).all()
+    van = Van.query.filter_by(assigned_to=tech.id).first()
+    charges = Charge.query.filter_by(technician_id=tech.id).order_by(Charge.created_at.desc()).all()
+    pos_items = TechnicianPos.query.filter_by(technician_id=tech.id).order_by(TechnicianPos.id.desc()).all()
+    courses = TechnicianCourse.query.filter_by(technician_id=tech.id).order_by(TechnicianCourse.id.desc()).all()
+
+    return render_template(
+        "technician_detail.html",
+        tech=tech,
+        mobile_items=mobile_items,
+        tools=tools,
+        van=van,
+        charges=charges,
+        pos_items=pos_items,
+        courses=courses,
+        title=f"Scheda {tech.name}",
+    )
