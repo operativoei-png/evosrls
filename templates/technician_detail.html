@@ -3,10 +3,7 @@
 <div class="card shadow-sm mb-4">
   <div class="card-body">
     <h3>{{ tech.name }}</h3>
-    <div class="text-muted">
-      {{ tech.phone or '-' }}
-      {% if tech.notes %} • {{ tech.notes }}{% endif %}
-    </div>
+    <div class="text-muted">{{ tech.phone or '-' }} {% if tech.notes %}• {{ tech.notes }}{% endif %}</div>
   </div>
 </div>
 
@@ -17,11 +14,7 @@
         <h5>Attrezzature assegnate</h5>
         <ul class="mb-0">
           {% for t in tools %}
-            <li>
-              {{ t.code }} - {{ t.description }}
-              {% if t.serial %} ({{ t.serial }}){% endif %}
-              - {{ t.status }}
-            </li>
+            <li>{{ t.code }} - {{ t.description }} {% if t.serial %}({{ t.serial }}){% endif %} - {{ t.status }}</li>
           {% else %}
             <li>Nessuna attrezzatura assegnata.</li>
           {% endfor %}
@@ -50,10 +43,7 @@
         <h5>Addebiti</h5>
         <ul class="mb-0">
           {% for c in charges %}
-            <li>
-              {{ c.description }} - {{ '%.2f'|format(c.amount) }} €
-              - {{ c.status }}
-            </li>
+            <li>{{ c.description }} - {{ '%.2f'|format(c.amount) }} € - {{ c.status }}</li>
           {% else %}
             <li>Nessun addebito.</li>
           {% endfor %}
