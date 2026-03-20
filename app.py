@@ -952,3 +952,8 @@ class ReturnLog(db.Model):
     status = db.Column(db.String(30), default="ok")  # ok / perso / rotto
     notes = db.Column(db.String(255), default="")
     technician = db.relationship("Technician", backref="return_logs")
+@app.route("/charges/print")
+@login_required
+def charges_print():
+    items = Charge.query.order_by(Charge.created_at.desc()).all()
+    return render_template("charges_print.html", items=items, title="Stampa Addebiti")
