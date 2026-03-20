@@ -28,7 +28,11 @@
   <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h4>Addebiti</h4>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="mb-0">Addebiti</h4>
+          <a class="btn btn-outline-primary" target="_blank" href="{{ url_for('charges_print') }}">Stampa addebiti</a>
+        </div>
+
         <div class="table-responsive">
           <table class="table table-sm">
             <thead><tr><th>Data</th><th>Tecnico</th><th>Descrizione</th><th>Importo</th><th>Stato</th><th>Azioni</th></tr></thead>
