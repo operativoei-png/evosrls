@@ -42,7 +42,114 @@ def create_app():
         return {"app_settings": AppSetting.query.first()}
 
     register_routes(app)
-    return app
+        @app.route("/tools", methods=["GET", "POST"])
+    @login_required
+    def tools():
+        if request.method == "POST":
+            db.session.add(
+                Tool(
+                    code=request.form.get("code", "").strip(),
+                    serial=request.form.get("serial", "").strip(),
+                    description=request.form.get("description", "").strip(),
+                    charge_value=float(request.form.get("charge_value", "0") or 0),
+                    status=request.form.get("status", "disponibile").strip(),
+                    notes=request.form.get("notes", "").strip(),
+                    assigned_to=int(request.form["assigned_to"]) if request.form.get("assigned_to") else None,
+                )
+            )
+            db.session.commit()
+            flash("Attrezzatura salvata.", "success")
+            return redirect(url_for("tools"))
+
+        items = Tool.query.order_by(Tool.id.desc()).all()
+        technicians = Technician.query.order_by(Technician.name.asc()).all()
+        return render_template("tools.html", items=items, technicians=technicians, title="Attrezzature")
+
+    @app.route("/vans", methods=["GET", "POST"])
+    @login_required
+    def vans():
+        if request.method == "POST":
+            db.session.add(
+                Van(
+                    plate=request.form.get("plate", "").strip(),
+                    model=request.form.get("model", "").strip(),
+                    status=request.form.get("status", "attivo").strip(),
+                    notes=request.form.get("notes", "").strip(),
+                    assigned_to=int(request.form["assigned_to"]) if request.form.get("assigned_to") else None,
+                )
+            )
+            db.session.commit()
+            flash("Mezzo salvato.", "success")
+            return redirect(url_for("vans"))
+
+        items = Van.query.order_by(Van.id.desc()).all()
+        technicians = Technician.query.order_by(Technician.name.asc()).all()
+        return render_template("vans.html", items=items, technicians=technicians, title="Furgoni")
+
+    @app.route("/charges", methods=["GET", "POST"])
+    @login_required
+    def charges():
+        if request.method == "POST":
+            tech_id = request.form.get("technician_id")
+            if not tech_id:
+                flash("Seleziona un tecnico.", "danger")
+                return redirect(url_for("charges"))
+
+            db.session.add(
+                Charge(
+                    technician_id=int(tech_id),
+                    description=request.form.get("description", "").strip(),
+                    amount=float(request.form.get("amount", "0") or 0),
+                    status=request.form.get("status", "aperto").strip(),
+                    notes=request.form.get("notes", "").strip(),
+                )
+            )
+            db.session.commit()
+            flash("Addebito salvato.", "success")
+            return redirect(url_for("charges"))
+
+        items = Charge.query.order_by(Charge.created_at.desc()).all()
+        technicians = Technician.query.order_by(Technician.name.asc()).all()
+        return render_template("charges.html", items=items, technicians=technicians, title="Addebiti")
+
+    @app.route("/tool/<int:item_id>/assign", methods=["POST"])
+    @login_required
+    def assign_tool(item_id):
+        item = Tool.query.get_or_404(item_id)
+        tech_id = request.form.get("technician_id")
+        item.assigned_to = int(tech_id) if tech_id else None
+        item.status = request.form.get("status", item.status)
+        db.session.commit()
+        flash("Attrezzatura assegnata.", "success")
+        return redirect(request.referrer or url_for("tools"))
+
+    @app.route("/van/<int:item_id>/assign", methods=["POST"])
+    @login_required
+    def assign_van(item_id):
+        item = Van.query.get_or_404(item_id)
+
+        # opzionale: un solo mezzo per tecnico
+        tech_id = request.form.get("technician_id")
+        if tech_id:
+            other = Van.query.filter_by(assigned_to=int(tech_id)).first()
+            if other and other.id != item.id:
+                other.assigned_to = None
+
+        item.assigned_to = int(tech_id) if tech_id else None
+        item.status = request.form.get("status", item.status)
+        db.session.commit()
+        flash("Mezzo assegnato.", "success")
+        return redirect(request.referrer or url_for("vans"))
+
+    @app.route("/charge/<int:item_id>/close", methods=["POST"])
+    @login_required
+    def close_charge(item_id):
+        item = Charge.query.get_or_404(item_id)
+        item.status = "chiuso"
+        db.session.commit()
+        flash("Addebito chiuso.", "success")
+        return redirect(request.referrer or url_for("charges"))
+        return app
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
