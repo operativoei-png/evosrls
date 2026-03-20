@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>{{ transfer.bolla_no }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 8px; font-size: 12px; }
+    h2, h3, p { margin: 0 0 10px 0; }
+    .top { display:flex; justify-content:space-between; align-items:flex-start; }
+    @media print { .no-print { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h2>{{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</h2>
+      <h3>Bolla {{ transfer.bolla_no }}</h3>
+    </div>
+    <button class="no-print" onclick="window.print()">Stampa</button>
+  </div>
+
+  <p><strong>Tipo:</strong> {{ 'Consegna' if transfer.transfer_type == 'out' else 'Rientro' }}</p>
+  <p><strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+  <p><strong>Tecnico:</strong> {{ transfer.technician.name if transfer.technician else '' }}</p>
+  <p><strong>Committente:</strong> {{ transfer.client }}</p>
+  <p><strong>Commessa:</strong> {{ transfer.job }}</p>
+  <p><strong>Note:</strong> {{ transfer.notes or '-' }}</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Categoria</th>
+        <th>Codice</th>
+        <th>Descrizione</th>
+        <th>Seriale</th>
+        <th>Q.tà</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for i in transfer.items %}
+      <tr>
+        <td>{{ i.category }}</td>
+        <td>{{ i.code }}</td>
+        <td>{{ i.description }}</td>
+        <td>{{ i.serial or '-' }}</td>
+        <td>{{ i.quantity }} {{ i.unit }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
