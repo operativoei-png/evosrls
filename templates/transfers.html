@@ -11,23 +11,57 @@
               <label class="form-label">Tecnico</label>
               <select class="form-select" name="technician_id" required>
                 <option value="">Seleziona</option>
-                {% for t in technicians %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                {% for t in technicians %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
               </select>
             </div>
             <div class="col-md-4"><label class="form-label">Committente</label><input class="form-control" name="client"></div>
             <div class="col-md-4"><label class="form-label">Commessa</label><input class="form-control" name="job"></div>
+
             <div class="col-12">
-              <label class="form-label">Righe da magazzino generale</label>
-              <select class="form-select" name="item_ids" multiple size="10">
-                {% for i in central_items %}
-                <option value="{{ i.id }}">{{ i.category }} | {{ i.code }} | {{ i.description }} | {{ i.serial or 'no-seriale' }} | q.tà {{ i.quantity }}</option>
-                {% endfor %}
-              </select>
+              <label class="form-label">Materiale da magazzino generale</label>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Codice</th>
+                      <th>Descrizione</th>
+                      <th>Seriale</th>
+                      <th>Q.tà disponibile</th>
+                      <th>Q.tà da assegnare</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {% for i in central_items %}
+                    <tr>
+                      <td><input type="checkbox" name="item_ids" value="{{ i.id }}"></td>
+                      <td>{{ i.code }}</td>
+                      <td>{{ i.description }}</td>
+                      <td>{{ i.serial or '-' }}</td>
+                      <td>{{ i.quantity }} {{ i.unit }}</td>
+                      <td>
+                        {% if not i.serialized %}
+                        <input class="form-control form-control-sm" type="number" min="1" max="{{ i.quantity }}" name="qty_{{ i.id }}" value="1">
+                        {% else %}
+                        1
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% else %}
+                    <tr><td colspan="6">Nessun materiale in magazzino generale.</td></tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
             <div class="col-12">
               <label class="form-label">Seriali letti con pistola / scanner</label>
               <textarea class="form-control" rows="7" name="serials" placeholder="Un seriale per riga oppure separati da virgola/punto e virgola"></textarea>
             </div>
+
             <div class="col-12"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
           </div>
           <button class="btn btn-primary mt-3">Crea bolla</button>
