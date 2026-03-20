@@ -41,7 +41,7 @@ def create_app():
     def inject_branding():
         return {"app_settings": AppSetting.query.first()}
 
-    register_routes(app)
+    def register_routes(app)
         @app.route("/tools", methods=["GET", "POST"])
     @login_required
     def tools():
