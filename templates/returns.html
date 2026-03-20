@@ -1,70 +1,189 @@
-{% extends 'base.html' %}
-{% block content %}
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h4>Seleziona tecnico</h4>
-        <form method="get">
-          <div class="mb-3">
-            <label class="form-label">Tecnico</label>
-            <select class="form-select" name="technician_id" required>
-              <option value="">Seleziona</option>
-              {% for t in technicians %}
-              <option value="{{ t.id }}" {% if selected_tech_id == t.id %}selected{% endif %}>{{ t.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <button class="btn btn-outline-primary">Carica materiale tecnico</button>
-        </form>
-      </div>
-    </div>
-  </div>
+@app.route("/returns", methods=["GET", "POST"])
+@login_required
+def returns():
+    technicians = Technician.query.order_by(Technician.name.asc()).all()
 
-  <div class="col-lg-8">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h4>Rientro materiali</h4>
-        <form method="post">
-          <input type="hidden" name="technician_id" value="{{ selected_tech_id or '' }}">
-          <div class="mb-3">
-            <label class="form-label">Note</label>
-            <input class="form-control" name="notes">
-          </div>
+    if request.method == "POST":
+        tech_id = int(request.form.get("technician_id"))
+        notes = request.form.get("notes", "").strip()
 
-          <div class="table-responsive">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Categoria</th>
-                  <th>Codice</th>
-                  <th>Descrizione</th>
-                  <th>Seriale</th>
-                  <th>Q.tà</th>
-                </tr>
-              </thead>
-              <tbody>
-              {% for i in tech_items %}
-                <tr>
-                  <td><input type="checkbox" name="item_ids" value="{{ i.id }}"></td>
-                  <td>{{ i.category }}</td>
-                  <td>{{ i.code }}</td>
-                  <td>{{ i.description }}</td>
-                  <td>{{ i.serial or '-' }}</td>
-                  <td>{{ i.quantity }} {{ i.unit }}</td>
-                </tr>
-              {% else %}
-                <tr><td colspan="6">Nessun materiale assegnato al tecnico.</td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        material_ids = request.form.getlist("material_ids")
+        tool_ids = request.form.getlist("tool_ids")
+        van_ids = request.form.getlist("van_ids")
 
-          <button class="btn btn-primary mt-3">Registra rientro</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
+        if not material_ids and not tool_ids and not van_ids:
+            flash("Seleziona almeno un elemento da rientrare.", "danger")
+            return redirect(url_for("returns", technician_id=tech_id))
+
+        tr = Transfer(
+            bolla_no=next_bolla_no(),
+            transfer_type="in",
+            technician_id=tech_id,
+            client="RIENTRO",
+            job="RIENTRO MAGAZZINO",
+            notes=notes,
+        )
+        db.session.add(tr)
+        db.session.flush()
+
+        # MATERIALI
+        materials = WarehouseItem.query.filter(
+            WarehouseItem.assigned_to == tech_id,
+            WarehouseItem.id.in_([int(x) for x in material_ids]) if material_ids else False
+        ).all() if material_ids else []
+
+        for item in materials:
+            if item.serialized:
+                item.assigned_to = None
+                item.last_transfer_date = now_it()
+                item.last_client = "RIENTRO"
+                item.last_job = "RIENTRO MAGAZZINO"
+            else:
+                central_same = WarehouseItem.query.filter_by(
+                    assigned_to=None,
+                    code=item.code,
+                    description=item.description,
+                    serialized=False,
+                    serial=""
+                ).first()
+
+                if central_same:
+                    central_same.quantity += item.quantity
+                    db.session.delete(item)
+                else:
+                    item.assigned_to = None
+                    item.last_transfer_date = now_it()
+                    item.last_client = "RIENTRO"
+                    item.last_job = "RIENTRO MAGAZZINO"
+
+            db.session.add(
+                TransferItem(
+                    transfer_id=tr.id,
+                    warehouse_item_id=item.id,
+                    category=item.category,
+                    code=item.code,
+                    description=item.description,
+                    serial=item.serial,
+                    quantity=item.quantity,
+                    unit=item.unit,
+                )
+            )
+
+            db.session.add(
+                ReturnLog(
+                    technician_id=tech_id,
+                    item_type="materiale",
+                    item_ref_id=item.id,
+                    description=item.description,
+                    serial=item.serial or "",
+                    status="ok",
+                    notes=notes,
+                )
+            )
+
+        # ATTREZZATURE
+        tools = Tool.query.filter(
+            Tool.assigned_to == tech_id,
+            Tool.id.in_([int(x) for x in tool_ids]) if tool_ids else False
+        ).all() if tool_ids else []
+
+        for item in tools:
+            item_status = request.form.get(f"tool_status_{item.id}", "ok")
+            item_notes = request.form.get(f"tool_notes_{item.id}", "").strip()
+
+            db.session.add(
+                ReturnLog(
+                    technician_id=tech_id,
+                    item_type="tool",
+                    item_ref_id=item.id,
+                    description=f"{item.code} - {item.description}",
+                    serial=item.serial or "",
+                    status=item_status,
+                    notes=item_notes,
+                )
+            )
+
+            if item_status == "ok":
+                item.assigned_to = None
+                item.status = "disponibile"
+            else:
+                item.status = item_status
+                db.session.add(
+                    Charge(
+                        technician_id=tech_id,
+                        description=f"Addebito attrezzatura {item.code} - {item.description} ({item_status})",
+                        amount=item.charge_value or 0,
+                        status="aperto",
+                        notes=item_notes,
+                    )
+                )
+
+        # MEZZI
+        vans = Van.query.filter(
+            Van.assigned_to == tech_id,
+            Van.id.in_([int(x) for x in van_ids]) if van_ids else False
+        ).all() if van_ids else []
+
+        for item in vans:
+            item_status = request.form.get(f"van_status_{item.id}", "ok")
+            item_notes = request.form.get(f"van_notes_{item.id}", "").strip()
+
+            db.session.add(
+                ReturnLog(
+                    technician_id=tech_id,
+                    item_type="van",
+                    item_ref_id=item.id,
+                    description=f"{item.plate} - {item.model}",
+                    serial="",
+                    status=item_status,
+                    notes=item_notes,
+                )
+            )
+
+            if item_status == "ok":
+                item.assigned_to = None
+                item.status = "attivo"
+            else:
+                item.status = item_status
+                db.session.add(
+                    Charge(
+                        technician_id=tech_id,
+                        description=f"Addebito mezzo {item.plate} - {item.model} ({item_status})",
+                        amount=0,
+                        status="aperto",
+                        notes=item_notes,
+                    )
+                )
+
+        db.session.commit()
+        flash(f"Rientro registrato con bolla {tr.bolla_no}.", "success")
+        return redirect(url_for("transfer_detail", transfer_id=tr.id))
+
+    selected_tech_id = request.args.get("technician_id", type=int)
+
+    tech_materials = []
+    tech_tools = []
+    tech_vans = []
+
+    if selected_tech_id:
+        tech_materials = WarehouseItem.query.filter_by(
+            assigned_to=selected_tech_id
+        ).order_by(WarehouseItem.id.desc()).all()
+
+        tech_tools = Tool.query.filter_by(
+            assigned_to=selected_tech_id
+        ).order_by(Tool.id.desc()).all()
+
+        tech_vans = Van.query.filter_by(
+            assigned_to=selected_tech_id
+        ).order_by(Van.id.desc()).all()
+
+    return render_template(
+        "returns.html",
+        technicians=technicians,
+        tech_materials=tech_materials,
+        tech_tools=tech_tools,
+        tech_vans=tech_vans,
+        selected_tech_id=selected_tech_id,
+        title="Rientro Magazzino",
+    )
