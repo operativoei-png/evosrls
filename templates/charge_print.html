@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Stampa Addebiti</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 8px; font-size: 12px; }
+    h2 { margin-bottom: 10px; }
+    @media print { .no-print { display:none; } }
+  </style>
+</head>
+<body>
+  <h2>Addebiti - {{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</h2>
+  <button class="no-print" onclick="window.print()">Stampa</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Tecnico</th>
+        <th>Descrizione</th>
+        <th>Importo</th>
+        <th>Stato</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for i in items %}
+      <tr>
+        <td>{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ i.technician.name if i.technician else '-' }}</td>
+        <td>{{ i.description }}</td>
+        <td>{{ '%.2f'|format(i.amount) }}</td>
+        <td>{{ i.status }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
