@@ -394,22 +394,63 @@ def register_routes(app):
             db.session.add(tr)
             db.session.flush()
 
-            for item in found:
-                item.assigned_to = tech_id
-                item.last_transfer_date = now_it()
-                item.last_client = client
-                item.last_job = job
+         for item in found:
+    # SERIALIZZATO = spostamento completo dal centrale al tecnico
+    if item.serialized:
+        item.assigned_to = tech_id
+        item.last_transfer_date = now_it()
+        item.last_client = client
+        item.last_job = job
 
-                db.session.add(
-                    TransferItem(
-                        transfer_id=tr.id,
-                        warehouse_item_id=item.id,
-                        category=item.category,
-                        code=item.code,
-                        description=item.description,
-                        serial=item.serial,
-                        quantity=item.quantity,
-                        unit=item.unit,
+        db.session.add(
+            TransferItem(
+                transfer_id=tr.id,
+                warehouse_item_id=item.id,
+                category=item.category,
+                code=item.code,
+                description=item.description,
+                serial=item.serial,
+                quantity=item.quantity,
+                unit=item.unit,
+            )
+        )
+
+    # NON SERIALIZZATO = scala dal centrale e crea riga sul tecnico
+    else:
+        qty_to_assign = item.quantity
+
+        mobile_item = WarehouseItem(
+            code=item.code,
+            category=item.category,
+            description=item.description,
+            serialized=False,
+            serial="",
+            quantity=qty_to_assign,
+            unit=item.unit,
+            min_stock=item.min_stock,
+            notes=item.notes,
+            client_default=item.client_default,
+            assigned_to=tech_id,
+            last_transfer_date=now_it(),
+            last_client=client,
+            last_job=job,
+        )
+        db.session.add(mobile_item)
+
+        db.session.add(
+            TransferItem(
+                transfer_id=tr.id,
+                warehouse_item_id=item.id,
+                category=item.category,
+                code=item.code,
+                description=item.description,
+                serial="",
+                quantity=qty_to_assign,
+                unit=item.unit,
+            )
+        )
+
+        db.session.delete(item)
                     )
                 )
 
