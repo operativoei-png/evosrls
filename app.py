@@ -941,3 +941,14 @@ class TechnicianCourse(db.Model):
     expiry_date = db.Column(db.String(50), default="")
     notes = db.Column(db.String(255), default="")
     technician = db.relationship("Technician", backref="courses")
+class ReturnLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
+    item_type = db.Column(db.String(30), nullable=False)   # materiale / tool / van
+    item_ref_id = db.Column(db.Integer, nullable=True)
+    description = db.Column(db.String(255), default="")
+    serial = db.Column(db.String(120), default="")
+    status = db.Column(db.String(30), default="ok")  # ok / perso / rotto
+    notes = db.Column(db.String(255), default="")
+    technician = db.relationship("Technician", backref="return_logs")
