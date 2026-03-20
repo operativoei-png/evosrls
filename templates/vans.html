@@ -4,21 +4,33 @@
   <div class="col-lg-4">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h4>Nuova attrezzatura</h4>
+        <h4>Nuovo mezzo</h4>
         <form method="post">
-          <div class="mb-2"><label class="form-label">Codice</label><input class="form-control" name="code" required></div>
-          <div class="mb-2"><label class="form-label">Seriale</label><input class="form-control" name="serial"></div>
-          <div class="mb-2"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
-          <div class="mb-2"><label class="form-label">Valore addebito</label><input class="form-control" type="number" step="0.01" name="charge_value" value="0"></div>
+          <div class="mb-2">
+            <label class="form-label">Targa</label>
+            <input class="form-control" name="plate" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Modello</label>
+            <input class="form-control" name="model">
+          </div>
           <div class="mb-2">
             <label class="form-label">Tecnico assegnato</label>
             <select class="form-select" name="assigned_to">
               <option value="">Nessuno</option>
-              {% for t in technicians %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              {% for t in technicians %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
             </select>
           </div>
-          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="disponibile"></div>
-          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
+          <div class="mb-2">
+            <label class="form-label">Stato</label>
+            <input class="form-control" name="status" value="attivo">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Note</label>
+            <input class="form-control" name="notes">
+          </div>
           <button class="btn btn-primary mt-2">Salva</button>
         </form>
       </div>
@@ -28,23 +40,32 @@
   <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h4>Attrezzature</h4>
+        <h4>Furgoni / Mezzi</h4>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Codice</th><th>Seriale</th><th>Descrizione</th><th>Tecnico</th><th>Stato</th><th>Azioni</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Targa</th>
+                <th>Modello</th>
+                <th>Tecnico</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
             <tbody>
             {% for i in items %}
               <tr>
-                <td>{{ i.code }}</td>
-                <td>{{ i.serial or '-' }}</td>
-                <td>{{ i.description }}</td>
+                <td>{{ i.plate }}</td>
+                <td>{{ i.model }}</td>
                 <td>{{ i.technician.name if i.technician else '-' }}</td>
                 <td>{{ i.status }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('assign_tool', item_id=i.id) }}" class="d-flex gap-1">
+                  <form method="post" action="{{ url_for('assign_van', item_id=i.id) }}" class="d-flex gap-1">
                     <select class="form-select form-select-sm" name="technician_id">
                       <option value="">Nessuno</option>
-                      {% for t in technicians %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                      {% for t in technicians %}
+                      <option value="{{ t.id }}" {% if i.assigned_to == t.id %}selected{% endif %}>{{ t.name }}</option>
+                      {% endfor %}
                     </select>
                     <input class="form-control form-control-sm" name="status" value="{{ i.status }}">
                     <button class="btn btn-sm btn-outline-primary">Salva</button>
@@ -52,7 +73,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="6">Nessuna attrezzatura.</td></tr>
+              <tr><td colspan="5">Nessun mezzo.</td></tr>
             {% endfor %}
             </tbody>
           </table>
