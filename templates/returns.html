@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4>Seleziona tecnico</h4>
+        <form method="get">
+          <div class="mb-3">
+            <label class="form-label">Tecnico</label>
+            <select class="form-select" name="technician_id" required>
+              <option value="">Seleziona</option>
+              {% for t in technicians %}
+              <option value="{{ t.id }}" {% if selected_tech_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn btn-outline-primary">Carica materiale tecnico</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4>Rientro materiali</h4>
+        <form method="post">
+          <input type="hidden" name="technician_id" value="{{ selected_tech_id or '' }}">
+          <div class="mb-3">
+            <label class="form-label">Note</label>
+            <input class="form-control" name="notes">
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Categoria</th>
+                  <th>Codice</th>
+                  <th>Descrizione</th>
+                  <th>Seriale</th>
+                  <th>Q.tà</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for i in tech_items %}
+                <tr>
+                  <td><input type="checkbox" name="item_ids" value="{{ i.id }}"></td>
+                  <td>{{ i.category }}</td>
+                  <td>{{ i.code }}</td>
+                  <td>{{ i.description }}</td>
+                  <td>{{ i.serial or '-' }}</td>
+                  <td>{{ i.quantity }} {{ i.unit }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="6">Nessun materiale assegnato al tecnico.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <button class="btn btn-primary mt-3">Registra rientro</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
