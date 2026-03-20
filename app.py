@@ -394,24 +394,62 @@ def register_routes(app):
             db.session.add(tr)
             db.session.flush()
 
-         for item in found:
-    # SERIALIZZATO = spostamento completo dal centrale al tecnico
-    if item.serialized:
-        item.assigned_to = tech_id
-        item.last_transfer_date = now_it()
-        item.last_client = client
-        item.last_job = job
+        for item in found:
 
-        db.session.add(
-            TransferItem(
-                transfer_id=tr.id,
-                warehouse_item_id=item.id,
-                category=item.category,
-                code=item.code,
-                description=item.description,
-                serial=item.serial,
-                quantity=item.quantity,
-                unit=item.unit,
+            # SERIALIZZATI (1 per riga)
+            if item.serial:
+                new_item = WarehouseItem(
+                    category=item.category,
+                    code=item.code,
+                    description=item.description,
+                    serial=item.serial,
+                    quantity=1,
+                    unit=item.unit,
+                    assigned_to=tech_id,
+                    last_transfer_date=now_it(),
+                    last_client=client,
+                    last_job=job
+                )
+
+                db.session.add(new_item)
+                db.session.delete(item)
+
+            # NON SERIALIZZATI (quantità)
+            else:
+                if item.quantity > 1:
+                    item.quantity -= 1
+
+                    new_item = WarehouseItem(
+                        category=item.category,
+                        code=item.code,
+                        description=item.description,
+                        quantity=1,
+                        unit=item.unit,
+                        assigned_to=tech_id,
+                        last_transfer_date=now_it(),
+                        last_client=client,
+                        last_job=job
+                    )
+                    db.session.add(new_item)
+
+                else:
+                    item.assigned_to = tech_id
+                    item.last_transfer_date = now_it()
+                    item.last_client = client
+                    item.last_job = job
+
+            db.session.add(
+                TransferItem(
+                    transfer_id=tr.id,
+                    warehouse_item_id=item.id,
+                    category=item.category,
+                    code=item.code,
+                    description=item.description,
+                    serial=item.serial,
+                    quantity=1,
+                    unit=item.unit,
+                )
+            )
             )
         )
 
