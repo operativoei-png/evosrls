@@ -1,72 +1,58 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <h3>{{ tech.name }}</h3>
-    <div class="text-muted">{{ tech.phone }} {% if tech.notes %}• {{ tech.notes }}{% endif %}</div>
-  </div>
-</div>
-
 <div class="row g-4">
   <div class="col-lg-4">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h5>Attrezzature</h5>
-        <ul class="mb-0">
-          {% for t in tools %}
-            <li>{{ t.code }} - {{ t.description }} {% if t.serial %}({{ t.serial }}){% endif %}</li>
-          {% else %}
-            <li>Nessuna attrezzatura.</li>
-          {% endfor %}
-        </ul>
+        <h4>Nuovo addebito</h4>
+        <form method="post">
+          <div class="mb-2">
+            <label class="form-label">Tecnico</label>
+            <select class="form-select" name="technician_id" required>
+              <option value="">Seleziona</option>
+              {% for t in technicians %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
+          <div class="mb-2"><label class="form-label">Importo</label><input class="form-control" type="number" step="0.01" name="amount" required></div>
+          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="aperto"></div>
+          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
+          <button class="btn btn-primary mt-2">Salva</button>
+        </form>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-4">
+  <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h5>Mezzo assegnato</h5>
-        {% if van %}
-          <div>{{ van.plate }} - {{ van.model }}</div>
-        {% else %}
-          <div>Nessun mezzo assegnato.</div>
-        {% endif %}
+        <h4>Addebiti</h4>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Data</th><th>Tecnico</th><th>Descrizione</th><th>Importo</th><th>Stato</th><th>Azioni</th></tr></thead>
+            <tbody>
+            {% for i in items %}
+              <tr>
+                <td>{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ i.technician.name if i.technician else '-' }}</td>
+                <td>{{ i.description }}</td>
+                <td>{{ '%.2f'|format(i.amount) }}</td>
+                <td>{{ i.status }}</td>
+                <td>
+                  {% if i.status != 'chiuso' %}
+                  <form method="post" action="{{ url_for('close_charge', item_id=i.id) }}">
+                    <button class="btn btn-sm btn-outline-danger">Chiudi</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6">Nessun addebito.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  </div>
-
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>Materiali in carico</h5>
-        <div class="fs-4 fw-bold">{{ mobile_items|length }}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="card shadow-sm mt-4">
-  <div class="card-body">
-    <h4>Magazzino viaggiante</h4>
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead><tr><th>Categoria</th><th>Codice</th><th>Descrizione</th><th>Seriale</th><th>Committente</th><th>Data</th></tr></thead>
-        <tbody>
-        {% for i in mobile_items %}
-          <tr>
-            <td>{{ i.category }}</td>
-            <td>{{ i.code }}</td>
-            <td>{{ i.description }}</td>
-            <td>{{ i.serial or '-' }}</td>
-            <td>{{ i.last_client or '-' }}</td>
-            <td>{{ i.last_transfer_date or '-' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="6">Nessun materiale assegnato.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
     </div>
   </div>
 </div>
