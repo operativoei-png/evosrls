@@ -291,11 +291,14 @@ def register_routes(app):
     @login_required
     def technician_detail(tech_id):
         tech = Technician.query.get_or_404(tech_id)
+
         mobile_items = WarehouseItem.query.filter_by(
             assigned_to=tech.id
         ).order_by(WarehouseItem.id.desc()).all()
-        tools = Tool.query.filter_by(assigned_to=tech.id).all()
+
+        tools = Tool.query.filter_by(assigned_to=tech.id).order_by(Tool.id.desc()).all()
         van = Van.query.filter_by(assigned_to=tech.id).first()
+        charges = Charge.query.filter_by(technician_id=tech.id).order_by(Charge.created_at.desc()).all()
 
         return render_template(
             "technician_detail.html",
@@ -303,6 +306,7 @@ def register_routes(app):
             mobile_items=mobile_items,
             tools=tools,
             van=van,
+            charges=charges,
             title=f"Scheda {tech.name}",
         )
 
@@ -395,12 +399,10 @@ def register_routes(app):
             db.session.flush()
 
             for item in found:
-                # quantità richiesta da form: qty_<id>
                 qty_requested = request.form.get(f"qty_{item.id}", "").strip()
                 qty_requested = int(qty_requested) if qty_requested.isdigit() else 1
 
                 if item.serialized:
-                    # serializzato = spostamento diretto
                     item.assigned_to = tech_id
                     item.last_transfer_date = now_it()
                     item.last_client = client
@@ -419,7 +421,6 @@ def register_routes(app):
                         )
                     )
                 else:
-                    # non serializzato = quantità parziale
                     qty_to_assign = max(1, qty_requested)
                     if qty_to_assign > item.quantity:
                         qty_to_assign = item.quantity
@@ -455,7 +456,6 @@ def register_routes(app):
                         )
                     )
 
-                    # scala dal centrale
                     item.quantity -= qty_to_assign
                     if item.quantity <= 0:
                         db.session.delete(item)
@@ -481,6 +481,119 @@ def register_routes(app):
             "transfer_detail.html",
             transfer=Transfer.query.get_or_404(transfer_id),
             title="Bolla",
+        )
+
+    @app.route("/transfer/<int:transfer_id>/print")
+    @login_required
+    def transfer_print(transfer_id):
+        transfer = Transfer.query.get_or_404(transfer_id)
+        return render_template(
+            "transfer_print.html",
+            transfer=transfer,
+            title=f"Stampa {transfer.bolla_no}",
+        )
+
+    @app.route("/returns", methods=["GET", "POST"])
+    @login_required
+    def returns():
+        technicians = Technician.query.order_by(Technician.name.asc()).all()
+
+        if request.method == "POST":
+            tech_id = int(request.form.get("technician_id"))
+            notes = request.form.get("notes", "").strip()
+            selected_ids = request.form.getlist("item_ids")
+
+            if not selected_ids:
+                flash("Nessun materiale selezionato per il rientro.", "danger")
+                return redirect(url_for("returns", technician_id=tech_id))
+
+            items = WarehouseItem.query.filter(
+                WarehouseItem.assigned_to == tech_id,
+                WarehouseItem.id.in_([int(x) for x in selected_ids])
+            ).all()
+
+            if not items:
+                flash("Nessun materiale selezionato per il rientro.", "danger")
+                return redirect(url_for("returns"))
+
+            tr = Transfer(
+                bolla_no=next_bolla_no(),
+                transfer_type="in",
+                technician_id=tech_id,
+                client="RIENTRO",
+                job="RIENTRO MAGAZZINO",
+                notes=notes,
+            )
+            db.session.add(tr)
+            db.session.flush()
+
+            for item in items:
+                if item.serialized:
+                    item.assigned_to = None
+                    item.last_transfer_date = now_it()
+                    item.last_client = "RIENTRO"
+                    item.last_job = "RIENTRO MAGAZZINO"
+                else:
+                    central_same = WarehouseItem.query.filter_by(
+                        assigned_to=None,
+                        code=item.code,
+                        description=item.description,
+                        serialized=False,
+                        serial=""
+                    ).first()
+
+                    if central_same:
+                        central_same.quantity += item.quantity
+                        db.session.add(
+                            TransferItem(
+                                transfer_id=tr.id,
+                                warehouse_item_id=item.id,
+                                category=item.category,
+                                code=item.code,
+                                description=item.description,
+                                serial=item.serial,
+                                quantity=item.quantity,
+                                unit=item.unit,
+                            )
+                        )
+                        db.session.delete(item)
+                        continue
+                    else:
+                        item.assigned_to = None
+                        item.last_transfer_date = now_it()
+                        item.last_client = "RIENTRO"
+                        item.last_job = "RIENTRO MAGAZZINO"
+
+                db.session.add(
+                    TransferItem(
+                        transfer_id=tr.id,
+                        warehouse_item_id=item.id,
+                        category=item.category,
+                        code=item.code,
+                        description=item.description,
+                        serial=item.serial,
+                        quantity=item.quantity,
+                        unit=item.unit,
+                    )
+                )
+
+            db.session.commit()
+            flash(f"Rientro registrato con bolla {tr.bolla_no}.", "success")
+            return redirect(url_for("transfer_detail", transfer_id=tr.id))
+
+        selected_tech_id = request.args.get("technician_id", type=int)
+        tech_items = []
+        if selected_tech_id:
+            tech_items = WarehouseItem.query.filter_by(
+                assigned_to=selected_tech_id
+            ).order_by(WarehouseItem.id.desc()).all()
+
+        return render_template(
+            "returns.html",
+            technicians=technicians,
+            tech_items=tech_items,
+            selected_tech_id=selected_tech_id,
+            title="Rientro Magazzino",
         )
 
     @app.route("/tools", methods=["GET", "POST"])
