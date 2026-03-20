@@ -36,11 +36,23 @@ def technician_detail(tech_id):
         assigned_to=tech.id
     ).order_by(WarehouseItem.id.desc()).all()
 
-    tools = Tool.query.filter_by(assigned_to=tech.id).order_by(Tool.id.desc()).all()
+    tools = Tool.query.filter_by(
+        assigned_to=tech.id
+    ).order_by(Tool.id.desc()).all()
+
     van = Van.query.filter_by(assigned_to=tech.id).first()
-    charges = Charge.query.filter_by(technician_id=tech.id).order_by(Charge.created_at.desc()).all()
-    pos_items = TechnicianPos.query.filter_by(technician_id=tech.id).order_by(TechnicianPos.id.desc()).all()
-    courses = TechnicianCourse.query.filter_by(technician_id=tech.id).order_by(TechnicianCourse.id.desc()).all()
+
+    charges = Charge.query.filter_by(
+        technician_id=tech.id
+    ).order_by(Charge.created_at.desc()).all()
+
+    pos_items = TechnicianPos.query.filter_by(
+        technician_id=tech.id
+    ).order_by(TechnicianPos.id.desc()).all()
+
+    courses = TechnicianCourse.query.filter_by(
+        technician_id=tech.id
+    ).order_by(TechnicianCourse.id.desc()).all()
 
     return render_template(
         "technician_detail.html",
@@ -53,48 +65,3 @@ def technician_detail(tech_id):
         courses=courses,
         title=f"Scheda {tech.name}",
     )
-<div class="row g-4 mt-1">
-  <div class="col-lg-6">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>POS</h5>
-        <form method="post" class="mb-3">
-          <input type="hidden" name="form_type" value="pos">
-          <div class="mb-2"><input class="form-control" name="provider" placeholder="Provider POS"></div>
-          <div class="mb-2"><input class="form-control" name="pos_code" placeholder="Codice POS"></div>
-          <div class="mb-2"><input class="form-control" name="notes" placeholder="Note"></div>
-          <button class="btn btn-sm btn-primary">Salva POS</button>
-        </form>
-        <ul>
-          {% for p in pos_items %}
-            <li>{{ p.provider }} - {{ p.pos_code }} {% if p.notes %}({{ p.notes }}){% endif %}</li>
-          {% else %}
-            <li>Nessun POS.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-6">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5>Corsi</h5>
-        <form method="post" class="mb-3">
-          <input type="hidden" name="form_type" value="course">
-          <div class="mb-2"><input class="form-control" name="course_name" placeholder="Nome corso"></div>
-          <div class="mb-2"><input class="form-control" name="expiry_date" placeholder="Scadenza"></div>
-          <div class="mb-2"><input class="form-control" name="notes" placeholder="Note"></div>
-          <button class="btn btn-sm btn-primary">Salva corso</button>
-        </form>
-        <ul>
-          {% for c in courses %}
-            <li>{{ c.course_name }} - {{ c.expiry_date or '-' }} {% if c.notes %}({{ c.notes }}){% endif %}</li>
-          {% else %}
-            <li>Nessun corso.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
