@@ -2,7 +2,14 @@
 {% block content %}
 <div class="card shadow-sm">
   <div class="card-body">
-    <h3>{{ transfer.bolla_no }}</h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">{{ transfer.bolla_no }}</h3>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" target="_blank" href="{{ url_for('transfer_print', transfer_id=transfer.id) }}">Stampa bolla</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('transfers') }}">Torna alle bolle</a>
+      </div>
+    </div>
+
     <p>
       <strong>Tipo:</strong> {{ 'Consegna' if transfer.transfer_type == 'out' else 'Rientro' }}<br>
       <strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}<br>
@@ -11,9 +18,18 @@
       <strong>Commessa:</strong> {{ transfer.job }}<br>
       <strong>Note:</strong> {{ transfer.notes or '-' }}
     </p>
+
     <div class="table-responsive">
       <table class="table table-sm">
-        <thead><tr><th>Categoria</th><th>Codice</th><th>Descrizione</th><th>Seriale</th><th>Q.tà</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Categoria</th>
+            <th>Codice</th>
+            <th>Descrizione</th>
+            <th>Seriale</th>
+            <th>Q.tà</th>
+          </tr>
+        </thead>
         <tbody>
         {% for i in transfer.items %}
           <tr>
@@ -29,7 +45,6 @@
         </tbody>
       </table>
     </div>
-    <a class="btn btn-outline-secondary" href="{{ url_for('transfers') }}">Torna alle bolle</a>
   </div>
 </div>
 {% endblock %}
