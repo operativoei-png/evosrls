@@ -336,7 +336,7 @@ def register_routes(app):
 
     @app.route("/transfers", methods=["GET", "POST"])
     @login_required
-    def transfers():
+        def transfers():
         technicians = Technician.query.order_by(Technician.name.asc()).limit(1000).all()
         central_items = WarehouseItem.query.filter(
             WarehouseItem.assigned_to.is_(None)
@@ -394,103 +394,61 @@ def register_routes(app):
             db.session.add(tr)
             db.session.flush()
 
-        for item in found:
-
-            # SERIALIZZATI (1 per riga)
-            if item.serial:
-                new_item = WarehouseItem(
-                    category=item.category,
-                    code=item.code,
-                    description=item.description,
-                    serial=item.serial,
-                    quantity=1,
-                    unit=item.unit,
-                    assigned_to=tech_id,
-                    last_transfer_date=now_it(),
-                    last_client=client,
-                    last_job=job
-                )
-
-                db.session.add(new_item)
-                db.session.delete(item)
-
-            # NON SERIALIZZATI (quantità)
-            else:
-                if item.quantity > 1:
-                    item.quantity -= 1
-
-                    new_item = WarehouseItem(
-                        category=item.category,
-                        code=item.code,
-                        description=item.description,
-                        quantity=1,
-                        unit=item.unit,
-                        assigned_to=tech_id,
-                        last_transfer_date=now_it(),
-                        last_client=client,
-                        last_job=job
-                    )
-                    db.session.add(new_item)
-
-                else:
+            for item in found:
+                # SERIALIZZATI: spostamento diretto al tecnico
+                if item.serialized:
                     item.assigned_to = tech_id
                     item.last_transfer_date = now_it()
                     item.last_client = client
                     item.last_job = job
 
-            db.session.add(
-                TransferItem(
-                    transfer_id=tr.id,
-                    warehouse_item_id=item.id,
-                    category=item.category,
-                    code=item.code,
-                    description=item.description,
-                    serial=item.serial,
-                    quantity=1,
-                    unit=item.unit,
-                )
-            )
-            )
-        )
-
-    # NON SERIALIZZATO = scala dal centrale e crea riga sul tecnico
-    else:
-        qty_to_assign = item.quantity
-
-        mobile_item = WarehouseItem(
-            code=item.code,
-            category=item.category,
-            description=item.description,
-            serialized=False,
-            serial="",
-            quantity=qty_to_assign,
-            unit=item.unit,
-            min_stock=item.min_stock,
-            notes=item.notes,
-            client_default=item.client_default,
-            assigned_to=tech_id,
-            last_transfer_date=now_it(),
-            last_client=client,
-            last_job=job,
-        )
-        db.session.add(mobile_item)
-
-        db.session.add(
-            TransferItem(
-                transfer_id=tr.id,
-                warehouse_item_id=item.id,
-                category=item.category,
-                code=item.code,
-                description=item.description,
-                serial="",
-                quantity=qty_to_assign,
-                unit=item.unit,
-            )
-        )
-
-        db.session.delete(item)
+                    db.session.add(
+                        TransferItem(
+                            transfer_id=tr.id,
+                            warehouse_item_id=item.id,
+                            category=item.category,
+                            code=item.code,
+                            description=item.description,
+                            serial=item.serial,
+                            quantity=item.quantity,
+                            unit=item.unit,
+                        )
                     )
-                )
+
+                # NON SERIALIZZATI: spostamento totale della riga al tecnico
+                else:
+                    mobile_item = WarehouseItem(
+                        code=item.code,
+                        category=item.category,
+                        description=item.description,
+                        serialized=False,
+                        serial="",
+                        quantity=item.quantity,
+                        unit=item.unit,
+                        min_stock=item.min_stock,
+                        notes=item.notes,
+                        client_default=item.client_default,
+                        assigned_to=tech_id,
+                        last_transfer_date=now_it(),
+                        last_client=client,
+                        last_job=job,
+                    )
+                    db.session.add(mobile_item)
+
+                    db.session.add(
+                        TransferItem(
+                            transfer_id=tr.id,
+                            warehouse_item_id=item.id,
+                            category=item.category,
+                            code=item.code,
+                            description=item.description,
+                            serial="",
+                            quantity=item.quantity,
+                            unit=item.unit,
+                        )
+                    )
+
+                    db.session.delete(item)
 
             db.session.commit()
             flash(f"Bolla {tr.bolla_no} creata con {len(found)} righe.", "success")
@@ -505,11 +463,6 @@ def register_routes(app):
             transfers=transfers,
             title="Bolle",
         )
-
-    @app.route("/transfer/<int:transfer_id>")
-    @login_required
-    def transfer_detail(transfer_id):
-        return render_template(
             "transfer_detail.html",
             transfer=Transfer.query.get_or_404(transfer_id),
             title="Bolla",
