@@ -13,6 +13,9 @@
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('dashboard') }}">
       {{ app_settings.company_name if app_settings else 'Evolve' }}
+   <a class="nav-link" href="{{ url_for('tools') }}">Attrezzature</a>
+<a class="nav-link" href="{{ url_for('vans') }}">Furgoni</a>
+<a class="nav-link" href="{{ url_for('charges') }}">Addebiti</a> 
     </a>
     <div>
       <a class="btn btn-light btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
