@@ -28,6 +28,7 @@
       <a class="nav-link" href="{{ url_for('technicians') }}">Tecnici</a>
       <a class="nav-link" href="{{ url_for('warehouse') }}">Magazzino</a>
       <a class="nav-link" href="{{ url_for('transfers') }}">Bolle</a>
+      <a class="nav-link" href="{{ url_for('returns') }}">Rientri</a>
       <a class="nav-link" href="{{ url_for('tools') }}">Attrezzature</a>
       <a class="nav-link" href="{{ url_for('vans') }}">Furgoni</a>
       <a class="nav-link" href="{{ url_for('charges') }}">Addebiti</a>
@@ -37,6 +38,7 @@
   </div>
 </nav>
 {% endif %}
+
 <div class="container pb-4">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -49,4 +51,3 @@
 </div>
 </body>
 </html>
-<a class="nav-link" href="{{ url_for('returns') }}">Rientri</a>
