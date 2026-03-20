@@ -10,13 +10,27 @@
             <label class="form-label">Tecnico</label>
             <select class="form-select" name="technician_id" required>
               <option value="">Seleziona</option>
-              {% for t in technicians %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              {% for t in technicians %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
             </select>
           </div>
-          <div class="mb-2"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
-          <div class="mb-2"><label class="form-label">Importo</label><input class="form-control" type="number" step="0.01" name="amount" required></div>
-          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="aperto"></div>
-          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
+          <div class="mb-2">
+            <label class="form-label">Descrizione</label>
+            <input class="form-control" name="description" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Importo</label>
+            <input class="form-control" type="number" step="0.01" name="amount" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Stato</label>
+            <input class="form-control" name="status" value="aperto">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Note</label>
+            <input class="form-control" name="notes">
+          </div>
           <button class="btn btn-primary mt-2">Salva</button>
         </form>
       </div>
@@ -29,7 +43,16 @@
         <h4>Addebiti</h4>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Data</th><th>Tecnico</th><th>Descrizione</th><th>Importo</th><th>Stato</th><th>Azioni</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tecnico</th>
+                <th>Descrizione</th>
+                <th>Importo</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
             <tbody>
             {% for i in items %}
               <tr>
