@@ -925,3 +925,19 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+class TechnicianPos(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=False)
+    provider = db.Column(db.String(120), default="")
+    pos_code = db.Column(db.String(120), default="")
+    notes = db.Column(db.String(255), default="")
+    technician = db.relationship("Technician", backref="pos_items")
+
+
+class TechnicianCourse(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=False)
+    course_name = db.Column(db.String(150), nullable=False)
+    expiry_date = db.Column(db.String(50), default="")
+    notes = db.Column(db.String(255), default="")
+    technician = db.relationship("Technician", backref="courses")
