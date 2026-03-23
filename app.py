@@ -115,6 +115,8 @@ class WarehouseItem(db.Model):
     last_transfer_date = db.Column(db.String(40), default="")
     last_client = db.Column(db.String(120), default="")
     last_job = db.Column(db.String(120), default="")
+    item_status = db.Column(db.String(30), default="assegnato")
+    installed_at = db.Column(db.String(40), default="")
     technician = db.relationship("Technician", backref="mobile_items")
 
 
