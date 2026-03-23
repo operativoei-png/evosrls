@@ -15,6 +15,7 @@ from openpyxl import Workbook, load_workbook
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = "login"
+
 ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 
 
@@ -37,9 +38,9 @@ def create_app():
         db.create_all()
 
         if not User.query.filter_by(username="admin").first():
-            u = User(username="admin", role="admin")
-            u.set_password(os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123!"))
-            db.session.add(u)
+            admin = User(username="admin", role="admin")
+            admin.set_password(os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123!"))
+            db.session.add(admin)
             db.session.commit()
 
         if not AppSetting.query.first():
@@ -60,11 +61,11 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(30), default="admin", nullable=False)
 
-    def set_password(self, raw):
-        self.password_hash = generate_password_hash(raw)
+    def set_password(self, raw_password: str):
+        self.password_hash = generate_password_hash(raw_password)
 
-    def check_password(self, raw):
-        return check_password_hash(self.password_hash, raw)
+    def check_password(self, raw_password: str) -> bool:
+        return check_password_hash(self.password_hash, raw_password)
 
 
 class AppSetting(db.Model):
@@ -147,7 +148,7 @@ class Charge(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
     description = db.Column(db.String(255), nullable=False)
-    amount = db.Column(db.Float, default=0, nullable=False)
+    amount = db.Column(db.Float, default=0)
     status = db.Column(db.String(40), default="aperto")
     notes = db.Column(db.String(255), default="")
     technician = db.relationship("Technician", backref="charges")
@@ -179,19 +180,6 @@ class TransferItem(db.Model):
     warehouse_item = db.relationship("WarehouseItem")
 
 
-class ReturnLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
-    item_type = db.Column(db.String(30), nullable=False)
-    item_ref_id = db.Column(db.Integer, nullable=True)
-    description = db.Column(db.String(255), default="")
-    serial = db.Column(db.String(120), default="")
-    status = db.Column(db.String(30), default="ok")
-    notes = db.Column(db.String(255), default="")
-    technician = db.relationship("Technician", backref="return_logs")
-
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -210,13 +198,13 @@ def next_bolla_no():
     return f"{prefix}-{Transfer.query.count() + 1:05d}"
 
 
-def allowed_logo(filename):
+def allowed_logo(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_LOGO_EXTENSIONS
 
 
-def excel_response(wb, filename):
+def excel_response(workbook, filename: str):
     stream = BytesIO()
-    wb.save(stream)
+    workbook.save(stream)
     stream.seek(0)
     return send_file(
         stream,
@@ -229,18 +217,23 @@ def excel_response(wb, filename):
 def register_routes(app):
     @app.route("/")
     def home():
-        return redirect(url_for("dashboard" if current_user.is_authenticated else "login"))
+        if current_user.is_authenticated:
+            return redirect(url_for("dashboard"))
+        return redirect(url_for("login"))
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
-            user = User.query.filter(
-                func.lower(User.username) == request.form.get("username", "").strip().lower()
-            ).first()
-            if user and user.check_password(request.form.get("password", "")):
+            username = request.form.get("username", "").strip().lower()
+            password = request.form.get("password", "")
+            user = User.query.filter(func.lower(User.username) == username).first()
+
+            if user and user.check_password(password):
                 login_user(user)
                 return redirect(request.args.get("next") or url_for("dashboard"))
+
             flash("Credenziali non valide.", "danger")
+
         return render_template("login.html", title="Accesso")
 
     @app.route("/logout")
@@ -259,12 +252,21 @@ def register_routes(app):
             "open_charges": Charge.query.filter_by(status="aperto").count(),
             "transfers": Transfer.query.count(),
         }
+
         low_stock = WarehouseItem.query.filter(
             WarehouseItem.assigned_to.is_(None),
             WarehouseItem.quantity <= WarehouseItem.min_stock,
         ).order_by(WarehouseItem.id.desc()).limit(10).all()
+
         transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(10).all()
-        return render_template("dashboard.html", stats=stats, transfers=transfers, low_stock=low_stock, title="Dashboard")
+
+        return render_template(
+            "dashboard.html",
+            stats=stats,
+            low_stock=low_stock,
+            transfers=transfers,
+            title="Dashboard",
+        )
 
     @app.route("/technicians", methods=["GET", "POST"])
     @login_required
@@ -285,17 +287,26 @@ def register_routes(app):
 
         q = request.args.get("q", "").strip()
         query = Technician.query
+
         if q:
-            ilike = f"%{q}%"
+            like = f"%{q}%"
             query = query.filter(
                 or_(
-                    Technician.name.ilike(ilike),
-                    Technician.phone.ilike(ilike),
-                    Technician.notes.ilike(ilike),
+                    Technician.name.ilike(like),
+                    Technician.phone.ilike(like),
+                    Technician.notes.ilike(like),
                 )
             )
-        technicians = query.order_by(Technician.name.asc()).limit(1000).all()
-        return render_template("technicians.html", technicians=technicians, total_count=Technician.query.count(), q=q, title="Tecnici")
+
+        technicians_list = query.order_by(Technician.name.asc()).limit(1000).all()
+
+        return render_template(
+            "technicians.html",
+            technicians=technicians_list,
+            total_count=Technician.query.count(),
+            q=q,
+            title="Tecnici",
+        )
 
     @app.route("/technician/<int:tech_id>", methods=["GET", "POST"])
     @login_required
@@ -304,6 +315,7 @@ def register_routes(app):
 
         if request.method == "POST":
             form_type = request.form.get("form_type")
+
             if form_type == "pos":
                 db.session.add(
                     TechnicianPos(
@@ -366,6 +378,7 @@ def register_routes(app):
         item = WarehouseItem.query.get_or_404(item_id)
         tech_id = item.assigned_to
         item.item_status = "perso"
+
         db.session.add(
             Charge(
                 technician_id=tech_id,
@@ -418,7 +431,12 @@ def register_routes(app):
             selected_ids = request.form.getlist("item_ids")
             raw_serials = request.form.get("serials", "")
 
-            serials = [x.strip() for x in raw_serials.replace(";", "\n").replace(",", "\n").splitlines() if x.strip()]
+            serials = [
+                x.strip()
+                for x in raw_serials.replace(";", "\n").replace(",", "\n").splitlines()
+                if x.strip()
+            ]
+
             item_map = {}
 
             for sid in selected_ids:
@@ -527,13 +545,21 @@ def register_routes(app):
             flash(f"Bolla {tr.bolla_no} creata con {len(found)} righe.", "success")
             return redirect(url_for("transfer_detail", transfer_id=tr.id))
 
-        transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(30).all()
-        return render_template("transfers.html", technicians=technicians, central_items=central_items, transfers=transfers, title="Bolle")
+        transfers_list = Transfer.query.order_by(Transfer.created_at.desc()).limit(30).all()
+
+        return render_template(
+            "transfers.html",
+            technicians=technicians,
+            central_items=central_items,
+            transfers=transfers_list,
+            title="Bolle",
+        )
 
     @app.route("/transfer/<int:transfer_id>")
     @login_required
     def transfer_detail(transfer_id):
-        return render_template("transfer_detail.html", transfer=Transfer.query.get_or_404(transfer_id), title="Bolla")
+        transfer = Transfer.query.get_or_404(transfer_id)
+        return render_template("transfer_detail.html", transfer=transfer, title="Bolla")
 
     @app.route("/transfer/<int:transfer_id>/print")
     @login_required
@@ -653,6 +679,243 @@ def register_routes(app):
     def charges_print():
         items = Charge.query.order_by(Charge.created_at.desc()).all()
         return render_template("charges_print.html", items=items, title="Stampa Addebiti")
+
+    @app.route("/settings", methods=["GET", "POST"])
+    @login_required
+    def settings():
+        s = settings_obj()
+
+        if request.method == "POST":
+            s.company_name = request.form.get("company_name", "").strip() or "Evolve Impianti Srls"
+            s.bolla_prefix = request.form.get("bolla_prefix", "").strip() or "BOL"
+
+            if request.form.get("remove_logo") == "1":
+                s.logo_path = ""
+
+            logo = request.files.get("logo_file")
+            if logo and logo.filename:
+                if not allowed_logo(logo.filename):
+                    flash("Formato logo non supportato.", "danger")
+                    return redirect(url_for("settings"))
+
+                ext = Path(secure_filename(logo.filename)).suffix.lower()
+                filename = f"logo_{uuid4().hex}{ext}"
+                save_path = Path(app.root_path) / "static" / "uploads" / filename
+                logo.save(save_path)
+                s.logo_path = f"uploads/{filename}"
+
+            db.session.commit()
+            flash("Impostazioni salvate.", "success")
+            return redirect(url_for("settings"))
+
+        return render_template("settings.html", settings_obj=s, title="Impostazioni")
+
+    @app.route("/import/general", methods=["POST"])
+    @login_required
+    def import_general():
+        file = request.files.get("file")
+        if not file:
+            flash("Seleziona un file Excel.", "danger")
+            return redirect(url_for("warehouse"))
+
+        workbook = load_workbook(file)
+        worksheet = workbook["magazzino_generale"] if "magazzino_generale" in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+        rows = list(worksheet.iter_rows(values_only=True))
+        headers = [str(x).strip() if x is not None else "" for x in rows[0]]
+
+        imported = 0
+        for row in rows[1:]:
+            data = dict(zip(headers, row))
+            code = str(data.get("codice", "") or "").strip()
+            description = str(data.get("descrizione", "") or "").strip()
+
+            if not code or not description:
+                continue
+
+            db.session.add(
+                WarehouseItem(
+                    code=code,
+                    category=str(data.get("categoria", "materiale") or "materiale").strip(),
+                    description=description,
+                    serialized=str(data.get("serializzato", "") or "").lower() == "si",
+                    serial=str(data.get("seriale", "") or "").strip(),
+                    quantity=int(data.get("quantita", 1) or 1),
+                    unit=str(data.get("unita", "pz") or "pz").strip(),
+                    min_stock=int(data.get("scorta_minima", 0) or 0),
+                    client_default=str(data.get("committente_predefinita", "") or "").strip(),
+                    notes=str(data.get("note", "") or "").strip(),
+                )
+            )
+            imported += 1
+
+        db.session.commit()
+        flash(f"Importati {imported} materiali nel magazzino generale.", "success")
+        return redirect(url_for("warehouse"))
+
+    @app.route("/import/mobile", methods=["POST"])
+    @login_required
+    def import_mobile():
+        file = request.files.get("file")
+        if not file:
+            flash("Seleziona un file Excel.", "danger")
+            return redirect(url_for("transfers"))
+
+        workbook = load_workbook(file)
+        worksheet = workbook["magazzino_viaggiante"] if "magazzino_viaggiante" in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+        rows = list(worksheet.iter_rows(values_only=True))
+        headers = [str(x).strip() if x is not None else "" for x in rows[0]]
+
+        imported = 0
+        skipped = 0
+
+        for row in rows[1:]:
+            data = dict(zip(headers, row))
+            tech_name = str(data.get("tecnico", "") or "").strip()
+            tech = Technician.query.filter(func.lower(Technician.name) == tech_name.lower()).first()
+            code = str(data.get("codice", "") or "").strip()
+            description = str(data.get("descrizione", "") or "").strip()
+
+            if not tech or not code or not description:
+                skipped += 1
+                continue
+
+            db.session.add(
+                WarehouseItem(
+                    code=code,
+                    category=str(data.get("categoria", "materiale") or "materiale").strip(),
+                    description=description,
+                    serialized=str(data.get("serializzato", "") or "").lower() == "si",
+                    serial=str(data.get("seriale", "") or "").strip(),
+                    quantity=int(data.get("quantita", 1) or 1),
+                    unit=str(data.get("unita", "pz") or "pz").strip(),
+                    min_stock=int(data.get("scorta_minima", 0) or 0),
+                    client_default=str(data.get("committente_predefinita", "") or "").strip(),
+                    notes=str(data.get("note", "") or "").strip(),
+                    assigned_to=tech.id,
+                    last_transfer_date=str(data.get("data_consegna", "") or now_it()).strip(),
+                    last_client=str(data.get("committente", "") or "").strip(),
+                    last_job=str(data.get("commessa", "") or "").strip(),
+                    item_status="assegnato",
+                    installed_at="",
+                )
+            )
+            imported += 1
+
+        db.session.commit()
+        flash(f"Importati {imported} materiali ai tecnici. Scartate {skipped} righe.", "success")
+        return redirect(url_for("transfers"))
+
+    @app.route("/export/general")
+    @login_required
+    def export_general():
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "magazzino_generale"
+        worksheet.append([
+            "categoria", "codice", "descrizione", "serializzato", "seriale",
+            "quantita", "unita", "scorta_minima", "committente_predefinita", "note"
+        ])
+
+        for item in WarehouseItem.query.filter(WarehouseItem.assigned_to.is_(None)).all():
+            worksheet.append([
+                item.category,
+                item.code,
+                item.description,
+                "si" if item.serialized else "no",
+                item.serial,
+                item.quantity,
+                item.unit,
+                item.min_stock,
+                item.client_default,
+                item.notes,
+            ])
+
+        return excel_response(workbook, "Evolve_Magazzino_Generale.xlsx")
+
+    @app.route("/export/mobile")
+    @login_required
+    def export_mobile():
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "magazzino_viaggiante"
+        worksheet.append([
+            "tecnico", "categoria", "codice", "descrizione", "serializzato", "seriale",
+            "quantita", "unita", "scorta_minima", "committente_predefinita",
+            "committente", "commessa", "data_consegna", "note"
+        ])
+
+        for item in WarehouseItem.query.filter(WarehouseItem.assigned_to.is_not(None)).all():
+            worksheet.append([
+                item.technician.name if item.technician else "",
+                item.category,
+                item.code,
+                item.description,
+                "si" if item.serialized else "no",
+                item.serial,
+                item.quantity,
+                item.unit,
+                item.min_stock,
+                item.client_default,
+                item.last_client,
+                item.last_job,
+                item.last_transfer_date,
+                item.notes,
+            ])
+
+        return excel_response(workbook, "Evolve_Magazzino_Viaggiante.xlsx")
+
+    @app.route("/export/full")
+    @login_required
+    def export_full():
+        workbook = Workbook()
+
+        ws1 = workbook.active
+        ws1.title = "magazzino_generale"
+        ws1.append([
+            "categoria", "codice", "descrizione", "serializzato", "seriale",
+            "quantita", "unita", "scorta_minima", "committente_predefinita", "note"
+        ])
+
+        for item in WarehouseItem.query.filter(WarehouseItem.assigned_to.is_(None)).all():
+            ws1.append([
+                item.category,
+                item.code,
+                item.description,
+                "si" if item.serialized else "no",
+                item.serial,
+                item.quantity,
+                item.unit,
+                item.min_stock,
+                item.client_default,
+                item.notes,
+            ])
+
+        ws2 = workbook.create_sheet("magazzino_viaggiante")
+        ws2.append([
+            "tecnico", "categoria", "codice", "descrizione", "serializzato", "seriale",
+            "quantita", "unita", "scorta_minima", "committente_predefinita",
+            "committente", "commessa", "data_consegna", "note"
+        ])
+
+        for item in WarehouseItem.query.filter(WarehouseItem.assigned_to.is_not(None)).all():
+            ws2.append([
+                item.technician.name if item.technician else "",
+                item.category,
+                item.code,
+                item.description,
+                "si" if item.serialized else "no",
+                item.serial,
+                item.quantity,
+                item.unit,
+                item.min_stock,
+                item.client_default,
+                item.last_client,
+                item.last_job,
+                item.last_transfer_date,
+                item.notes,
+            ])
+
+        return excel_response(workbook, "Evolve_Export_Completo.xlsx")
 
 
 app = create_app()
