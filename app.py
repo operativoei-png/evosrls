@@ -53,7 +53,96 @@ def create_app():
 
     register_routes(app)
     return app
+    @app.route("/returns", methods=["GET", "POST"])
+    @login_required
+    def returns():
+        technicians = Technician.query.order_by(Technician.name.asc()).all()
 
+        if request.method == "POST":
+            tech_id = int(request.form.get("technician_id"))
+            notes = request.form.get("notes", "").strip()
+            selected_ids = request.form.getlist("material_ids")
+
+            if not selected_ids:
+                flash("Seleziona almeno un materiale da rientrare.", "danger")
+                return redirect(url_for("returns", technician_id=tech_id))
+
+            tr = Transfer(
+                bolla_no=next_bolla_no(),
+                transfer_type="in",
+                technician_id=tech_id,
+                client="RIENTRO",
+                job="RIENTRO MAGAZZINO",
+                notes=notes,
+            )
+            db.session.add(tr)
+            db.session.flush()
+
+            items = WarehouseItem.query.filter(
+                WarehouseItem.assigned_to == tech_id,
+                WarehouseItem.id.in_([int(x) for x in selected_ids])
+            ).all()
+
+            for item in items:
+                if item.serialized:
+                    item.assigned_to = None
+                    item.last_transfer_date = now_it()
+                    item.last_client = "RIENTRO"
+                    item.last_job = "RIENTRO MAGAZZINO"
+                    item.item_status = "assegnato"
+                    item.installed_at = ""
+                else:
+                    same_item = WarehouseItem.query.filter_by(
+                        assigned_to=None,
+                        code=item.code,
+                        description=item.description,
+                        serialized=False,
+                        serial=""
+                    ).first()
+
+                    if same_item:
+                        same_item.quantity += item.quantity
+                        db.session.delete(item)
+                    else:
+                        item.assigned_to = None
+                        item.last_transfer_date = now_it()
+                        item.last_client = "RIENTRO"
+                        item.last_job = "RIENTRO MAGAZZINO"
+                        item.item_status = "assegnato"
+                        item.installed_at = ""
+
+                db.session.add(
+                    TransferItem(
+                        transfer_id=tr.id,
+                        warehouse_item_id=item.id,
+                        category=item.category,
+                        code=item.code,
+                        description=item.description,
+                        serial=item.serial,
+                        quantity=item.quantity,
+                        unit=item.unit,
+                    )
+                )
+
+            db.session.commit()
+            flash(f"Rientro registrato con bolla {tr.bolla_no}.", "success")
+            return redirect(url_for("transfer_detail", transfer_id=tr.id))
+
+        selected_tech_id = request.args.get("technician_id", type=int)
+        tech_materials = []
+
+        if selected_tech_id:
+            tech_materials = WarehouseItem.query.filter_by(
+                assigned_to=selected_tech_id
+            ).order_by(WarehouseItem.id.desc()).all()
+
+        return render_template(
+            "returns.html",
+            technicians=technicians,
+            tech_materials=tech_materials,
+            selected_tech_id=selected_tech_id,
+            title="Rientri",
+        )
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
