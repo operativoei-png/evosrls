@@ -1,59 +1,99 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h4>Nuovo addebito</h4>
-        <form method="post">
-          <div class="mb-2">
-            <label class="form-label">Tecnico</label>
+        <h5 class="card-title text-primary fw-bold mb-4">Nuovo Addebito</h5>
+        
+        <form method="post" action="{{ url_for('charges') }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tecnico</label>
             <select class="form-select" name="technician_id" required>
-              <option value="">Seleziona</option>
+              <option value="">Seleziona un tecnico...</option>
               {% for t in technicians %}
               <option value="{{ t.id }}">{{ t.name }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="mb-2"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
-          <div class="mb-2"><label class="form-label">Importo</label><input class="form-control" type="number" step="0.01" name="amount" required></div>
-          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="aperto"></div>
-          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
-          <button class="btn btn-primary mt-2">Salva</button>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Descrizione (es. Multa, Danno)</label>
+            <input type="text" class="form-control" name="description" required>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Importo (€)</label>
+            <input type="number" class="form-control" step="0.01" min="0" name="amount" required>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Note Aggiuntive</label>
+            <textarea class="form-control" name="notes" rows="2" placeholder="Facoltativo..."></textarea>
+          </div>
+          
+          <input type="hidden" name="status" value="aperto">
+          
+          <button type="submit" class="btn btn-primary w-100 fw-bold">Registra Addebito</button>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="mb-0">Addebiti</h4>
-          <a class="btn btn-outline-primary" target="_blank" href="{{ url_for('charges_print') }}">Stampa addebiti</a>
+          <h5 class="card-title fw-bold mb-0">Storico Addebiti</h5>
+          <a class="btn btn-outline-secondary btn-sm" target="_blank" href="{{ url_for('charges_print') }}">
+            🖨️ Stampa Elenco
+          </a>
         </div>
 
         <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Data</th><th>Tecnico</th><th>Descrizione</th><th>Importo</th><th>Stato</th><th>Azioni</th></tr></thead>
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Data</th>
+                <th>Tecnico</th>
+                <th>Descrizione</th>
+                <th>Importo</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
             <tbody>
             {% for i in items %}
               <tr>
                 <td>{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>{{ i.technician.name if i.technician else '-' }}</td>
-                <td>{{ i.description }}</td>
-                <td>{{ '%.2f'|format(i.amount) }}</td>
-                <td>{{ i.status }}</td>
+                <td class="fw-semibold">{{ i.technician.name if i.technician else '-' }}</td>
+                <td>
+                  {{ i.description }}
+                  {% if i.notes %}
+                    <br><small class="text-muted">{{ i.notes }}</small>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">€ {{ '%.2f'|format(i.amount) }}</td>
+                <td>
+                  {% if i.status == 'chiuso' %}
+                    <span class="badge bg-success">Chiuso</span>
+                  {% else %}
+                    <span class="badge bg-danger">Aperto</span>
+                  {% endif %}
+                </td>
                 <td>
                   {% if i.status != 'chiuso' %}
-                  <form method="post" action="{{ url_for('close_charge', item_id=i.id) }}">
-                    <button class="btn btn-sm btn-outline-danger">Chiudi</button>
+                  <form method="post" action="{{ url_for('close_charge', item_id=i.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-outline-success">Saldato</button>
                   </form>
+                  {% else %}
+                  <span class="text-muted small">Nessuna azione</span>
                   {% endif %}
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="6">Nessun addebito.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted py-3">Nessun addebito registrato al momento.</td></tr>
             {% endfor %}
             </tbody>
           </table>
@@ -63,3 +103,4 @@
   </div>
 </div>
 {% endblock %}
+    
