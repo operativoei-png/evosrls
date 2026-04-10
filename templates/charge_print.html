@@ -2,40 +2,98 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Stampa Addebiti</title>
+  <title>Stampa Addebiti - {{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #333; padding: 8px; font-size: 12px; }
-    h2 { margin-bottom: 10px; }
-    @media print { .no-print { display:none; } }
+    body { 
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+      margin: 40px; 
+      color: #333;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #2c3e50;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    h2 { margin: 0; color: #2c3e50; }
+    .print-btn {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .print-btn:hover { background-color: #0b5ed7; }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 20px; 
+    }
+    th, td { 
+      border: 1px solid #ddd; 
+      padding: 10px; 
+      font-size: 13px; 
+      text-align: left;
+    }
+    th { 
+      background-color: #f8f9fa; 
+      font-weight: bold; 
+      color: #2c3e50;
+    }
+    tr:nth-child(even) { background-color: #fcfcfc; }
+    .text-right { text-align: right; }
+    
+    @media print { 
+      .no-print { display: none !important; } 
+      body { margin: 0; }
+      table { border: 1px solid #000; }
+      th, td { border: 1px solid #000; }
+    }
   </style>
 </head>
 <body>
-  <h2>Addebiti - {{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</h2>
-  <button class="no-print" onclick="window.print()">Stampa</button>
+  
+  <div class="header">
+    <h2>Registro Addebiti - {{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</h2>
+    <button class="print-btn no-print" onclick="window.print()">Stampa Documento</button>
+  </div>
 
   <table>
     <thead>
       <tr>
-        <th>Data</th>
-        <th>Tecnico</th>
-        <th>Descrizione</th>
-        <th>Importo</th>
-        <th>Stato</th>
+        <th style="width: 15%;">Data</th>
+        <th style="width: 25%;">Tecnico</th>
+        <th style="width: 35%;">Descrizione</th>
+        <th style="width: 10%;" class="text-right">Importo</th>
+        <th style="width: 15%;">Stato</th>
       </tr>
     </thead>
     <tbody>
     {% for i in items %}
       <tr>
         <td>{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-        <td>{{ i.technician.name if i.technician else '-' }}</td>
+        <td>{{ i.technician.name if i.technician else 'Non Assegnato' }}</td>
         <td>{{ i.description }}</td>
-        <td>{{ '%.2f'|format(i.amount) }}</td>
-        <td>{{ i.status }}</td>
+        <td class="text-right">€ {{ '%.2f'|format(i.amount) }}</td>
+        <td>
+          {% if i.status|lower == 'pagato' %}
+            <strong>Pagato</strong>
+          {% else %}
+            Da Saldare
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="5" style="text-align: center; font-style: italic;">Nessun addebito registrato.</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
+
 </body>
 </html>
