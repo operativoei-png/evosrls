@@ -133,4 +133,292 @@ class Transfer(db.Model):
     transfer_type = db.Column(db.String(10)) 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     client = db.Column(db.String(150))
-    job = db.Column(db
+    job = db.Column(db.String(150))
+    notes = db.Column(db.String(255))
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
+    technician = db.relationship("Technician")
+    items = db.relationship("TransferItem", backref="transfer")
+
+class TransferItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transfer_id = db.Column(db.Integer, db.ForeignKey("transfer.id"))
+    category = db.Column(db.String(50))
+    code = db.Column(db.String(80))
+    description = db.Column(db.String(255))
+    serial = db.Column(db.String(120))
+    quantity = db.Column(db.Integer)
+    unit = db.Column(db.String(20))
+
+# --- ROTTE ---
+
+@login_manager.user_loader
+def load_user(user_id): return User.query.get(int(user_id))
+
+def register_routes(app):
+    @app.route("/")
+    def home(): return redirect(url_for("dashboard" if current_user.is_authenticated else "login"))
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if request.method == "POST":
+            user = User.query.filter_by(username=request.form.get("username")).first()
+            if user and user.check_password(request.form.get("password")):
+                login_user(user)
+                return redirect(url_for("dashboard"))
+            flash("Credenziali non valide", "error")
+        return render_template("login.html")
+
+    @app.route("/logout")
+    def logout(): logout_user(); return redirect(url_for("login"))
+
+    @app.route("/dashboard")
+    @login_required
+    def dashboard():
+        stats = {
+            "technicians": Technician.query.count(),
+            "items_general": WarehouseItem.query.filter_by(status="generale").count(),
+            "items_traveling": WarehouseItem.query.filter_by(status="in_viaggio").count(),
+            "items_installed": WarehouseItem.query.filter_by(status="installato").count(),
+            "open_charges": Charge.query.filter_by(status="aperto").count()
+        }
+        recent_assignments = WarehouseItem.query.filter_by(status="in_viaggio").order_by(WarehouseItem.last_update.desc()).limit(5).all()
+        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.created_at.desc()).limit(5).all()
+        return render_template("dashboard.html", stats=stats, recent_assignments=recent_assignments, recent_charges=recent_charges)
+
+    @app.route("/warehouse", methods=["GET", "POST"])
+    @login_required
+    def warehouse():
+        if request.method == "POST":
+            tech_id = request.form.get("technician_id")
+            s = AppSetting.query.first()
+            bolla_no = f"{s.bolla_prefix}-{datetime.now().year}-{Transfer.query.count() + 1:04d}"
+            
+            new_transfer = Transfer(bolla_no=bolla_no, transfer_type="out", technician_id=tech_id,
+                                    client=request.form.get("client"), job=request.form.get("job"), notes=request.form.get("notes"))
+            db.session.add(new_transfer)
+            db.session.flush()
+
+            count = 0
+            raw_serials = request.form.get("serials", "")
+            if raw_serials.strip():
+                serial_list = [s.strip() for s in re.split(r'[\n,;]+', raw_serials) if s.strip()]
+                for sn in serial_list:
+                    item = WarehouseItem.query.filter_by(serial=sn).first()
+                    if not item:
+                        item = WarehouseItem(serial=sn, code="NEW", description="Articolo da Barcode", status="in_viaggio", assigned_to=tech_id)
+                        db.session.add(item)
+                    else:
+                        item.status = "in_viaggio"
+                        item.assigned_to = tech_id
+                    db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
+                    count += 1
+
+            item_ids = request.form.getlist("item_ids")
+            for i_id in item_ids:
+                item = WarehouseItem.query.get(i_id)
+                item.status = "in_viaggio"
+                item.assigned_to = tech_id
+                db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
+                count += 1
+
+            if count > 0:
+                db.session.commit()
+                flash(f"Bolla {bolla_no} creata. Trasferiti {count} articoli.", "success")
+            else:
+                db.session.rollback()
+                flash("Nessun articolo selezionato.", "error")
+            return redirect(url_for("warehouse"))
+
+        items = WarehouseItem.query.filter_by(status="generale").all()
+        technicians = Technician.query.all()
+        transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(10).all()
+        return render_template("warehouse.html", items=items, technicians=technicians, transfers=transfers)
+
+    @app.route("/magazzino_generale", methods=["GET", "POST"])
+    @login_required
+    def magazzino_generale():
+        if request.method == "POST":
+            new_item = WarehouseItem(
+                code=request.form.get("code"), category=request.form.get("category"),
+                description=request.form.get("description"), unit=request.form.get("unit"),
+                serialized=(request.form.get("serialized") == "si"),
+                serial=request.form.get("serial") if request.form.get("serialized") == "si" else None,
+                quantity=int(request.form.get("quantity") or 1),
+                min_stock=int(request.form.get("min_stock") or 0),
+                client_default=request.form.get("client_default"),
+                status="generale"
+            )
+            db.session.add(new_item)
+            db.session.commit()
+            flash("Articolo salvato.", "success")
+            return redirect(url_for("magazzino_generale"))
+        return render_template("magazzino_generale.html", items=WarehouseItem.query.filter_by(status="generale").all())
+
+    @app.route("/technicians", methods=["GET", "POST"])
+    @login_required
+    def technicians():
+        if request.method == "POST":
+            db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
+            db.session.commit()
+            flash("Tecnico aggiunto.", "success")
+        return render_template("technicians.html", technicians=Technician.query.all())
+
+    @app.route("/technician/<int:tech_id>")
+    @login_required
+    def technician_detail(tech_id):
+        tech = Technician.query.get_or_404(tech_id)
+        mobile_items = WarehouseItem.query.filter_by(assigned_to=tech_id, status="in_viaggio").all()
+        certs = Certificate.query.filter_by(technician_id=tech_id).all()
+        return render_template("technician_detail.html", tech=tech, mobile_items=mobile_items, certs=certs)
+
+    @app.route("/install_item/<int:item_id>", methods=["POST"])
+    @login_required
+    def install_item(item_id):
+        item = WarehouseItem.query.get_or_404(item_id)
+        item.status = "installato"
+        db.session.commit()
+        flash(f"Articolo {item.serial} installato.", "success")
+        return redirect(request.referrer)
+
+    @app.route("/upload_cert/<int:tech_id>", methods=["POST"])
+    @login_required
+    def upload_cert(tech_id):
+        file = request.files.get("cert_file")
+        if file:
+            filename = f"tech_{tech_id}_{uuid4().hex}{Path(file.filename).suffix}"
+            file.save(os.path.join(app.config["CERT_FOLDER"], filename))
+            db.session.add(Certificate(technician_id=tech_id, filename=filename, description=request.form.get("description")))
+            db.session.commit()
+            flash("Documento caricato.", "success")
+        return redirect(url_for("technician_detail", tech_id=tech_id))
+
+    @app.route("/view_cert/<int:cert_id>")
+    @login_required
+    def view_cert(cert_id):
+        cert = Certificate.query.get_or_404(cert_id)
+        return send_from_directory(app.config["CERT_FOLDER"], cert.filename)
+
+    @app.route("/charges", methods=["GET", "POST"])
+    @login_required
+    def charges():
+        if request.method == "POST":
+            db.session.add(Charge(technician_id=request.form.get("technician_id"), description=request.form.get("description"),
+                                  amount=float(request.form.get("amount") or 0), notes=request.form.get("notes"), status="aperto"))
+            db.session.commit()
+            flash("Addebito registrato.", "success")
+        items = Charge.query.order_by(Charge.created_at.desc()).all()
+        technicians = Technician.query.all()
+        return render_template("charges.html", items=items, technicians=technicians)
+
+    @app.route("/close_charge/<int:item_id>", methods=["POST"])
+    @login_required
+    def close_charge(item_id):
+        c = Charge.query.get_or_404(item_id)
+        c.status = "chiuso"
+        db.session.commit()
+        return redirect(url_for("charges"))
+
+    @app.route("/charges_print")
+    @login_required
+    def charges_print():
+        return render_template("stampa_addebiti.html", items=Charge.query.all())
+
+    @app.route("/returns", methods=["GET", "POST"])
+    @login_required
+    def returns():
+        if request.method == "POST":
+            for m_id in request.form.getlist("material_ids"):
+                item = WarehouseItem.query.get(m_id)
+                item.status, item.assigned_to = "generale", None
+            for t_id in request.form.getlist("tool_ids"):
+                tool = Tool.query.get(t_id)
+                tool.status, tool.assigned_to = request.form.get(f"tool_status_{t_id}"), None
+            for v_id in request.form.getlist("van_ids"):
+                Van.query.get(v_id).assigned_to = None
+            db.session.commit()
+            flash("Rientro completato.", "success")
+            return redirect(url_for("returns"))
+        
+        t_id = request.args.get("technician_id")
+        data = {"technicians": Technician.query.all(), "selected_tech_id": t_id}
+        if t_id:
+            data.update({
+                "tech_materials": WarehouseItem.query.filter_by(assigned_to=t_id, status="in_viaggio").all(),
+                "tech_tools": Tool.query.filter_by(assigned_to=t_id).all(),
+                "tech_vans": Van.query.filter_by(assigned_to=t_id).all()
+            })
+        return render_template("returns.html", **data)
+
+    @app.route("/tools", methods=["GET", "POST"])
+    @login_required
+    def tools():
+        if request.method == "POST":
+            db.session.add(Tool(code=request.form.get("code"), serial=request.form.get("serial"), description=request.form.get("description"),
+                                charge_value=float(request.form.get("charge_value") or 0), assigned_to=request.form.get("assigned_to") or None))
+            db.session.commit()
+        return render_template("tools.html", items=Tool.query.all(), technicians=Technician.query.all())
+
+    @app.route("/assign_tool/<int:item_id>", methods=["POST"])
+    @login_required
+    def assign_tool(item_id):
+        t = Tool.query.get_or_404(item_id)
+        t.assigned_to = request.form.get("technician_id") or None
+        t.status = request.form.get("status")
+        db.session.commit()
+        return redirect(url_for("tools"))
+
+    @app.route("/vans", methods=["GET", "POST"])
+    @login_required
+    def vans():
+        if request.method == "POST":
+            db.session.add(Van(plate=request.form.get("plate").upper(), model=request.form.get("model"), assigned_to=request.form.get("assigned_to") or None))
+            db.session.commit()
+        return render_template("vans.html", items=Van.query.all(), technicians=Technician.query.all())
+
+    @app.route("/assign_van/<int:item_id>", methods=["POST"])
+    @login_required
+    def assign_van(item_id):
+        v = Van.query.get_or_404(item_id)
+        v.assigned_to = request.form.get("technician_id") or None
+        db.session.commit()
+        return redirect(url_for("vans"))
+
+    @app.route("/import_excel", methods=["POST"])
+    @login_required
+    def import_excel():
+        file = request.files.get("excel_file")
+        if file:
+            wb = load_workbook(file)
+            sheet = wb.active
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if row[0] and not WarehouseItem.query.filter_by(serial=str(row[0])).first():
+                    db.session.add(WarehouseItem(serial=str(row[0]), code=str(row[1]), description=str(row[2]), status="generale"))
+            db.session.commit()
+        return redirect(url_for("warehouse"))
+
+    @app.route("/settings", methods=["GET", "POST"])
+    @login_required
+    def settings():
+        s = AppSetting.query.first()
+        if request.method == "POST":
+            s.company_name = request.form.get("company_name")
+            s.bolla_prefix = request.form.get("bolla_prefix")
+            file = request.files.get("logo_file")
+            if file:
+                fname = f"logo_{uuid4().hex}{Path(file.filename).suffix}"
+                file.save(os.path.join(app.config["UPLOAD_FOLDER"], fname))
+                s.logo_path = f"uploads/{fname}"
+            if request.form.get("remove_logo"): s.logo_path = ""
+            db.session.commit()
+        return render_template("settings.html", settings_obj=s)
+
+    @app.route("/transfer_detail/<int:transfer_id>")
+    @login_required
+    def transfer_detail(transfer_id):
+        return render_template("transfer_detail.html", transfer=Transfer.query.get_or_404(transfer_id))
+
+# --- BOOT ---
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
