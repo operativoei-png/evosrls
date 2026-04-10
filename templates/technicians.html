@@ -1,59 +1,101 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Nuovo tecnico</h4>
-        <form method="post">
+        <h5 class="card-title fw-bold text-primary mb-4">👤 Nuovo Tecnico</h5>
+        
+        <form method="post" action="{{ url_for('technicians') }}">
           <div class="mb-3">
-            <label class="form-label">Nome</label>
-            <input class="form-control" name="name" required>
+            <label class="form-label fw-semibold">Nome e Cognome</label>
+            <input type="text" class="form-control" name="name" placeholder="es. Mario Rossi" required>
           </div>
+          
           <div class="mb-3">
-            <label class="form-label">Telefono</label>
-            <input class="form-control" name="phone">
+            <label class="form-label fw-semibold">Telefono</label>
+            <input type="tel" class="form-control" name="phone" placeholder="es. 333 1234567">
           </div>
-          <div class="mb-3">
-            <label class="form-label">Note</label>
-            <input class="form-control" name="notes">
+          
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Note / Mansione</label>
+            <input type="text" class="form-control" name="notes" placeholder="es. Elettricista Specializzato">
           </div>
-          <button class="btn btn-primary">Salva</button>
+          
+          <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+            Aggiungi Tecnico
+          </button>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h4 class="mb-0">Tecnici</h4>
-          <form class="d-flex gap-2" method="get">
-            <input class="form-control" name="q" value="{{ q }}" placeholder="Cerca tecnico">
-            <button class="btn btn-outline-primary">Cerca</button>
-          </form>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+          <div>
+            <h5 class="card-title fw-bold mb-0">Elenco Squadra Tecnici</h5>
+            <div class="small text-muted mt-1">Totale registrati: {{ technicians|length }}</div>
+          </div>
+          
+          <div style="min-width: 250px;">
+            <input type="text" id="searchTech" class="form-control border-primary" placeholder="🔍 Cerca nome..." onkeyup="filterTable()">
+          </div>
         </div>
-        <div class="small text-muted mb-2">Totale tecnici registrati: {{ total_count }}</div>
+        
         <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Nome</th><th>Telefono</th><th>Note</th><th>Dettaglio</th></tr></thead>
+          <table class="table table-hover align-middle" id="techTable">
+            <thead class="table-light">
+              <tr>
+                <th>Nome</th>
+                <th>Telefono</th>
+                <th>Note</th>
+                <th class="text-end">Azione</th>
+              </tr>
+            </thead>
             <tbody>
             {% for t in technicians %}
               <tr>
-                <td>{{ t.name }}</td>
-                <td>{{ t.phone }}</td>
-                <td>{{ t.notes }}</td>
-                <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('technician_detail', tech_id=t.id) }}">Scheda</a></td>
+                <td class="fw-bold text-dark">{{ t.name }}</td>
+                <td>{{ t.phone or '-' }}</td>
+                <td class="text-muted small">{{ t.notes or '-' }}</td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-primary fw-bold" href="{{ url_for('technician_detail', tech_id=t.id) }}">
+                    Apri Scheda ➡️
+                  </a>
+                </td>
               </tr>
             {% else %}
-              <tr><td colspan="4">Nessun tecnico.</td></tr>
+              <tr><td colspan="4" class="text-center text-muted py-4">Nessun tecnico registrato nel sistema.</td></tr>
             {% endfor %}
             </tbody>
           </table>
         </div>
+        
       </div>
     </div>
   </div>
 </div>
+
+<script>
+function filterTable() {
+  let input = document.getElementById("searchTech");
+  let filter = input.value.toLowerCase();
+  let rows = document.querySelectorAll("#techTable tbody tr");
+  
+  rows.forEach(row => {
+    // Ignora la riga "Nessun tecnico" se presente
+    if(row.cells.length === 1) return; 
+    
+    let name = row.cells[0].textContent.toLowerCase();
+    if (name.includes(filter)) {
+      row.style.display = "";
+    } else {
+      row.style.display = "none";
+    }
+  });
+}
+</script>
 {% endblock %}
