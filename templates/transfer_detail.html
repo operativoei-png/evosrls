@@ -1,50 +1,61 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card shadow-sm">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-0">{{ transfer.bolla_no }}</h3>
-      <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" target="_blank" href="{{ url_for('transfer_print', transfer_id=transfer.id) }}">Stampa bolla</a>
-        <a class="btn btn-outline-secondary" href="{{ url_for('transfers') }}">Torna alle bolle</a>
+<div class="row mt-2">
+  <div class="col-12">
+    <div class="card shadow-sm border-0 mb-4">
+      
+      <div class="card-body bg-light border-bottom d-flex justify-content-between align-items-center rounded-top">
+        <div>
+          <h3 class="mb-1 fw-bold text-dark">
+            📄 Documento n° {{ transfer.bolla_no }}
+          </h3>
+          {% if transfer.transfer_type == 'out' %}
+            <span class="badge bg-primary fs-6">Consegna a Tecnico</span>
+          {% else %}
+            <span class="badge bg-secondary fs-6">Rientro in Sede</span>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary fw-bold shadow-sm" onclick="window.print()">
+            🖨️ Stampa Bolla
+          </button>
+          <a class="btn btn-outline-secondary fw-bold" href="#">
+            Torna allo Storico
+          </a>
+        </div>
       </div>
-    </div>
 
-    <p>
-      <strong>Tipo:</strong> {{ 'Consegna' if transfer.transfer_type == 'out' else 'Rientro' }}<br>
-      <strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}<br>
-      <strong>Tecnico:</strong> {{ transfer.technician.name if transfer.technician else '' }}<br>
-      <strong>Committente:</strong> {{ transfer.client }}<br>
-      <strong>Commessa:</strong> {{ transfer.job }}<br>
-      <strong>Note:</strong> {{ transfer.notes or '-' }}
-    </p>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <h6 class="text-muted fw-bold text-uppercase mb-1">Dati Documento</h6>
+            <p class="mb-0"><strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p class="mb-0"><strong>Tecnico:</strong> <span class="fw-bold text-primary">{{ transfer.technician.name if transfer.technician else 'Non specificato' }}</span></p>
+          </div>
+          <div class="col-md-4">
+            <h6 class="text-muted fw-bold text-uppercase mb-1">Riferimenti Lavoro</h6>
+            <p class="mb-0"><strong>Committente:</strong> {{ transfer.client or 'N/A' }}</p>
+            <p class="mb-0"><strong>Commessa:</strong> {{ transfer.job or 'N/A' }}</p>
+          </div>
+          <div class="col-md-4">
+            <h6 class="text-muted fw-bold text-uppercase mb-1">Note Aggiuntive</h6>
+            <p class="mb-0 fst-italic">{{ transfer.notes or 'Nessuna nota inserita.' }}</p>
+          </div>
+        </div>
 
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Categoria</th>
-            <th>Codice</th>
-            <th>Descrizione</th>
-            <th>Seriale</th>
-            <th>Q.tà</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for i in transfer.items %}
-          <tr>
-            <td>{{ i.category }}</td>
-            <td>{{ i.code }}</td>
-            <td>{{ i.description }}</td>
-            <td>{{ i.serial or '-' }}</td>
-            <td>{{ i.quantity }} {{ i.unit }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="5">Nessuna riga.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-{% endblock %}
+        <h5 class="fw-bold mb-3 border-bottom pb-2">📦 Elenco Materiale</h5>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle table-sm">
+            <thead class="table-dark">
+              <tr>
+                <th>Categoria</th>
+                <th>Codice</th>
+                <th>Descrizione</th>
+                <th>Seriale</th>
+                <th class="text-center">Q.tà</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for i in transfer.items %}
+              <tr>
+                <td><span class="badge bg-secondary">{{
