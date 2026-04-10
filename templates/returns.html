@@ -1,140 +1,148 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h4>Seleziona tecnico</h4>
-        <form method="get">
+        <h5 class="card-title fw-bold text-primary mb-3">Seleziona Tecnico</h5>
+        <form method="get" action="{{ url_for('returns') }}">
           <div class="mb-3">
-            <label class="form-label">Tecnico</label>
-            <select class="form-select" name="technician_id" required>
-              <option value="">Seleziona</option>
+            <select class="form-select" name="technician_id" required onchange="this.form.submit()">
+              <option value="">-- Clicca per selezionare --</option>
               {% for t in technicians %}
-              <option value="{{ t.id }}" {% if selected_tech_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+              <option value="{{ t.id }}" {% if selected_tech_id == t.id|string %}selected{% endif %}>
+                {{ t.name }}
+              </option>
               {% endfor %}
             </select>
           </div>
-          <button class="btn btn-outline-primary">Carica assegnazioni tecnico</button>
+          <noscript>
+            <button type="submit" class="btn btn-outline-primary w-100">Carica assegnazioni</button>
+          </noscript>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h4>Rientro completo</h4>
-        <form method="post">
-          <input type="hidden" name="technician_id" value="{{ selected_tech_id or '' }}">
+        <h5 class="card-title fw-bold mb-4">Rientro Materiali e Dotazioni</h5>
+        
+        {% if selected_tech_id %}
+        <form method="post" action="{{ url_for('returns') }}">
+          <input type="hidden" name="technician_id" value="{{ selected_tech_id }}">
 
-          <div class="mb-3">
-            <label class="form-label">Note generali</label>
-            <input class="form-control" name="notes">
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Note generali di rientro</label>
+            <textarea class="form-control" name="notes" rows="2" placeholder="Es. Fine rapporto lavorativo, oppure cambio furgone..."></textarea>
           </div>
 
-          <h5>Materiale</h5>
+          <h6 class="fw-bold text-secondary border-bottom pb-2">📦 Materiale Viaggiante</h6>
           <div class="table-responsive mb-4">
-            <table class="table table-sm">
-              <thead>
+            <table class="table table-sm table-hover align-middle">
+              <thead class="table-light">
                 <tr>
-                  <th></th>
+                  <th style="width: 5%;"><input type="checkbox" class="form-check-input" id="selectAllMaterials"></th>
+                  <th>Seriale</th>
                   <th>Codice</th>
                   <th>Descrizione</th>
-                  <th>Seriale</th>
-                  <th>Q.tà</th>
                 </tr>
               </thead>
               <tbody>
               {% for i in tech_materials %}
                 <tr>
-                  <td><input type="checkbox" name="material_ids" value="{{ i.id }}"></td>
+                  <td><input type="checkbox" class="form-check-input material-checkbox" name="material_ids" value="{{ i.id }}"></td>
+                  <td class="fw-bold text-primary">{{ i.serial }}</td>
                   <td>{{ i.code }}</td>
                   <td>{{ i.description }}</td>
-                  <td>{{ i.serial or '-' }}</td>
-                  <td>{{ i.quantity }} {{ i.unit }}</td>
                 </tr>
               {% else %}
-                <tr><td colspan="5">Nessun materiale assegnato.</td></tr>
+                <tr><td colspan="4" class="text-muted py-2">Nessun materiale assegnato.</td></tr>
               {% endfor %}
               </tbody>
             </table>
           </div>
 
-          <h5>Attrezzature</h5>
+          <h6 class="fw-bold text-secondary border-bottom pb-2">🛠️ Attrezzature</h6>
           <div class="table-responsive mb-4">
-            <table class="table table-sm">
-              <thead>
+            <table class="table table-sm table-hover align-middle">
+              <thead class="table-light">
                 <tr>
-                  <th></th>
-                  <th>Codice</th>
+                  <th style="width: 5%;"><input type="checkbox" class="form-check-input" id="selectAllTools"></th>
                   <th>Descrizione</th>
-                  <th>Seriale</th>
                   <th>Esito</th>
-                  <th>Note</th>
+                  <th>Note guasto/smarrimento</th>
                 </tr>
               </thead>
               <tbody>
               {% for i in tech_tools %}
                 <tr>
-                  <td><input type="checkbox" name="tool_ids" value="{{ i.id }}"></td>
-                  <td>{{ i.code }}</td>
-                  <td>{{ i.description }}</td>
-                  <td>{{ i.serial or '-' }}</td>
+                  <td><input type="checkbox" class="form-check-input tool-checkbox" name="tool_ids" value="{{ i.id }}"></td>
+                  <td>{{ i.description }} <small class="text-muted">({{ i.code }})</small></td>
                   <td>
                     <select class="form-select form-select-sm" name="tool_status_{{ i.id }}">
-                      <option value="ok">OK</option>
-                      <option value="perso">Perso</option>
-                      <option value="rotto">Rotto</option>
+                      <option value="disponibile">OK - Funzionante</option>
+                      <option value="perso">Perso / Smarrito</option>
+                      <option value="rotto">Rotto / Da riparare</option>
                     </select>
                   </td>
-                  <td><input class="form-control form-control-sm" name="tool_notes_{{ i.id }}"></td>
+                  <td><input type="text" class="form-control form-control-sm" name="tool_notes_{{ i.id }}"></td>
                 </tr>
               {% else %}
-                <tr><td colspan="6">Nessuna attrezzatura assegnata.</td></tr>
+                <tr><td colspan="4" class="text-muted py-2">Nessun'attrezzatura assegnata.</td></tr>
               {% endfor %}
               </tbody>
             </table>
           </div>
 
-          <h5>Mezzi</h5>
+          <h6 class="fw-bold text-secondary border-bottom pb-2">🚐 Mezzi / Furgoni</h6>
           <div class="table-responsive mb-4">
-            <table class="table table-sm">
-              <thead>
+            <table class="table table-sm table-hover align-middle">
+              <thead class="table-light">
                 <tr>
-                  <th></th>
+                  <th style="width: 5%;"><input type="checkbox" class="form-check-input" id="selectAllVans"></th>
                   <th>Targa</th>
                   <th>Modello</th>
-                  <th>Esito</th>
-                  <th>Note</th>
                 </tr>
               </thead>
               <tbody>
               {% for i in tech_vans %}
                 <tr>
-                  <td><input type="checkbox" name="van_ids" value="{{ i.id }}"></td>
-                  <td>{{ i.plate }}</td>
+                  <td><input type="checkbox" class="form-check-input van-checkbox" name="van_ids" value="{{ i.id }}" checked></td>
+                  <td class="fw-bold">{{ i.plate }}</td>
                   <td>{{ i.model }}</td>
-                  <td>
-                    <select class="form-select form-select-sm" name="van_status_{{ i.id }}">
-                      <option value="ok">OK</option>
-                      <option value="perso">Perso</option>
-                      <option value="rotto">Rotto</option>
-                    </select>
-                  </td>
-                  <td><input class="form-control form-control-sm" name="van_notes_{{ i.id }}"></td>
                 </tr>
               {% else %}
-                <tr><td colspan="5">Nessun mezzo assegnato.</td></tr>
+                <tr><td colspan="3" class="text-muted py-2">Nessun mezzo assegnato.</td></tr>
               {% endfor %}
               </tbody>
             </table>
           </div>
 
-          <button class="btn btn-primary">Registra rientro</button>
+          <button type="submit" class="btn btn-primary fw-bold w-100">Registra Rientro Selezionati</button>
         </form>
+        {% else %}
+          <div class="text-center text-muted py-5">
+            <p>Seleziona un tecnico dal menu a sinistra per visualizzare le sue dotazioni e registrarne il rientro.</p>
+          </div>
+        {% endif %}
+
       </div>
     </div>
   </div>
 </div>
+
+<script>
+  document.getElementById('selectAllMaterials')?.addEventListener('change', function(e) {
+    document.querySelectorAll('.material-checkbox').forEach(cb => cb.checked = e.target.checked);
+  });
+  document.getElementById('selectAllTools')?.addEventListener('change', function(e) {
+    document.querySelectorAll('.tool-checkbox').forEach(cb => cb.checked = e.target.checked);
+  });
+  document.getElementById('selectAllVans')?.addEventListener('change', function(e) {
+    document.querySelectorAll('.van-checkbox').forEach(cb => cb.checked = e.target.checked);
+  });
+</script>
 {% endblock %}
