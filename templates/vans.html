@@ -1,63 +1,112 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Nuovo mezzo</h4>
-        <form method="post">
-          <div class="mb-2"><label class="form-label">Targa</label><input class="form-control" name="plate" required></div>
-          <div class="mb-2"><label class="form-label">Modello</label><input class="form-control" name="model"></div>
-          <div class="mb-2">
-            <label class="form-label">Tecnico assegnato</label>
+        <h5 class="card-title fw-bold text-primary mb-4">🚐 Nuovo Automezzo</h5>
+        
+        <form method="post" action="{{ url_for('vans') }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Targa</label>
+            <input type="text" class="form-control text-uppercase" name="plate" placeholder="es. AB123CD" required>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Modello / Marca</label>
+            <input type="text" class="form-control" name="model" placeholder="es. Fiat Ducato">
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Assegna a Tecnico</label>
             <select class="form-select" name="assigned_to">
-              <option value="">Nessuno</option>
+              <option value="">-- In Sede (Nessuno) --</option>
               {% for t in technicians %}
               <option value="{{ t.id }}">{{ t.name }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="attivo"></div>
-          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
-          <button class="btn btn-primary mt-2">Salva</button>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Stato Attuale</label>
+            <select class="form-select" name="status">
+              <option value="attivo" selected>Attivo / Marciante</option>
+              <option value="in_manutenzione">In Manutenzione (Meccanico)</option>
+              <option value="guasto">Guasto / Fermo</option>
+              <option value="dismesso">Dismesso</option>
+            </select>
+          </div>
+          
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Note / Scadenze</label>
+            <textarea class="form-control" name="notes" rows="2" placeholder="es. Scadenza Assicurazione, Tagliando..."></textarea>
+          </div>
+          
+          <button type="submit" class="btn btn-primary w-100 fw-bold">Registra Automezzo</button>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Furgoni / Mezzi</h4>
+        <h5 class="card-title fw-bold mb-4">Flotta Aziendale</h5>
+        
         <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Targa</th><th>Modello</th><th>Tecnico</th><th>Stato</th><th>Azioni</th></tr></thead>
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Veicolo</th>
+                <th>Note</th>
+                <th>Assegnazione & Stato</th>
+              </tr>
+            </thead>
             <tbody>
             {% for i in items %}
               <tr>
-                <td>{{ i.plate }}</td>
-                <td>{{ i.model }}</td>
-                <td>{{ i.technician.name if i.technician else '-' }}</td>
-                <td>{{ i.status }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('assign_van', item_id=i.id) }}" class="d-flex gap-1">
-                    <select class="form-select form-select-sm" name="technician_id">
-                      <option value="">Nessuno</option>
-                      {% for t in technicians %}
-                      <option value="{{ t.id }}" {% if i.assigned_to == t.id %}selected{% endif %}>{{ t.name }}</option>
-                      {% endfor %}
-                    </select>
-                    <input class="form-control form-control-sm" name="status" value="{{ i.status }}">
-                    <button class="btn btn-sm btn-outline-primary">Salva</button>
+                  <strong class="fs-5 text-dark">{{ i.plate }}</strong><br>
+                  <small class="text-muted">{{ i.model }}</small>
+                </td>
+                <td class="small text-muted" style="max-width: 150px;">
+                  {{ i.notes or '-' }}
+                </td>
+                
+                <td style="min-width: 250px;">
+                  <form method="post" action="{{ url_for('assign_van', item_id=i.id) }}" class="d-flex flex-column gap-2">
+                    
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">👤</span>
+                      <select class="form-select" name="technician_id" onchange="this.form.submit()">
+                        <option value="">In Sede</option>
+                        {% for t in technicians %}
+                        <option value="{{ t.id }}" {% if i.assigned_to == t.id %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">🚦</span>
+                      <select class="form-select {% if i.status == 'guasto' %}text-danger fw-bold{% elif i.status == 'in_manutenzione' %}text-warning fw-bold{% elif i.status == 'dismesso' %}text-secondary{% else %}text-success fw-bold{% endif %}" name="status" onchange="this.form.submit()">
+                        <option value="attivo" {% if i.status == 'attivo' %}selected{% endif %}>Attivo</option>
+                        <option value="in_manutenzione" {% if i.status == 'in_manutenzione' %}selected{% endif %}>In Manutenzione</option>
+                        <option value="guasto" {% if i.status == 'guasto' %}selected{% endif %}>Guasto</option>
+                        <option value="dismesso" {% if i.status == 'dismesso' %}selected{% endif %}>Dismesso</option>
+                      </select>
+                    </div>
+                    
                   </form>
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="5">Nessun mezzo.</td></tr>
+              <tr><td colspan="3" class="text-center text-muted py-4">Nessun automezzo registrato nella flotta.</td></tr>
             {% endfor %}
             </tbody>
           </table>
         </div>
+        
       </div>
     </div>
   </div>
