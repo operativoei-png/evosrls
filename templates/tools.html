@@ -1,66 +1,121 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Nuova attrezzatura</h4>
-        <form method="post">
-          <div class="mb-2"><label class="form-label">Codice</label><input class="form-control" name="code" required></div>
-          <div class="mb-2"><label class="form-label">Seriale</label><input class="form-control" name="serial"></div>
-          <div class="mb-2"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
-          <div class="mb-2"><label class="form-label">Valore addebito</label><input class="form-control" type="number" step="0.01" name="charge_value" value="0"></div>
-          <div class="mb-2">
-            <label class="form-label">Tecnico assegnato</label>
+        <h5 class="card-title fw-bold text-primary mb-4">🛠️ Nuova Attrezzatura</h5>
+        
+        <form method="post" action="{{ url_for('tools') }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Codice Interno</label>
+            <input type="text" class="form-control" name="code" placeholder="es. TRAP-01" required>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Seriale Produttore</label>
+            <input type="text" class="form-control" name="serial" placeholder="Opzionale">
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Descrizione</label>
+            <input type="text" class="form-control" name="description" placeholder="es. Trapano Avvitatore Makita" required>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Valore di Addebito (€)</label>
+            <input type="number" class="form-control" step="0.01" min="0" name="charge_value" value="0.00">
+            <div class="form-text">Valore da far pagare in caso di smarrimento o rottura.</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Assegna a Tecnico</label>
             <select class="form-select" name="assigned_to">
-              <option value="">Nessuno</option>
+              <option value="">-- In Magazzino (Nessuno) --</option>
               {% for t in technicians %}
               <option value="{{ t.id }}">{{ t.name }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="mb-2"><label class="form-label">Stato</label><input class="form-control" name="status" value="disponibile"></div>
-          <div class="mb-2"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
-          <button class="btn btn-primary mt-2">Salva</button>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Stato Attuale</label>
+            <select class="form-select" name="status">
+              <option value="disponibile" selected>Disponibile / OK</option>
+              <option value="in_riparazione">In Riparazione</option>
+              <option value="rotto">Rotto</option>
+              <option value="smarrito">Smarrito</option>
+            </select>
+          </div>
+          
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Note</label>
+            <textarea class="form-control" name="notes" rows="2" placeholder="Annotazioni..."></textarea>
+          </div>
+          
+          <button type="submit" class="btn btn-primary w-100 fw-bold">Registra Attrezzatura</button>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Attrezzature</h4>
+        <h5 class="card-title fw-bold mb-4">Inventario Attrezzature</h5>
+        
         <div class="table-responsive">
-          <table class="table table-sm">
-            <thead><tr><th>Codice</th><th>Seriale</th><th>Descrizione</th><th>Tecnico</th><th>Stato</th><th>Azioni</th></tr></thead>
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Attrezzatura</th>
+                <th>Seriale</th>
+                <th>Assegnazione & Stato</th>
+              </tr>
+            </thead>
             <tbody>
             {% for i in items %}
               <tr>
-                <td>{{ i.code }}</td>
-                <td>{{ i.serial or '-' }}</td>
-                <td>{{ i.description }}</td>
-                <td>{{ i.technician.name if i.technician else '-' }}</td>
-                <td>{{ i.status }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('assign_tool', item_id=i.id) }}" class="d-flex gap-1">
-                    <select class="form-select form-select-sm" name="technician_id">
-                      <option value="">Nessuno</option>
-                      {% for t in technicians %}
-                      <option value="{{ t.id }}" {% if i.assigned_to == t.id %}selected{% endif %}>{{ t.name }}</option>
-                      {% endfor %}
-                    </select>
-                    <input class="form-control form-control-sm" name="status" value="{{ i.status }}">
-                    <button class="btn btn-sm btn-outline-primary">Salva</button>
+                  <strong class="text-dark">{{ i.description }}</strong><br>
+                  <small class="text-muted">Codice: {{ i.code }}</small>
+                </td>
+                <td>{{ i.serial or '-' }}</td>
+                
+                <td style="min-width: 250px;">
+                  <form method="post" action="{{ url_for('assign_tool', item_id=i.id) }}" class="d-flex flex-column gap-2">
+                    
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">👤</span>
+                      <select class="form-select" name="technician_id" onchange="this.form.submit()">
+                        <option value="">In Sede</option>
+                        {% for t in technicians %}
+                        <option value="{{ t.id }}" {% if i.assigned_to == t.id %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text bg-light">🏷️</span>
+                      <select class="form-select {% if i.status == 'rotto' or i.status == 'smarrito' %}text-danger fw-bold{% elif i.status == 'in_riparazione' %}text-warning fw-bold{% else %}text-success fw-bold{% endif %}" name="status" onchange="this.form.submit()">
+                        <option value="disponibile" {% if i.status == 'disponibile' %}selected{% endif %}>OK</option>
+                        <option value="in_riparazione" {% if i.status == 'in_riparazione' %}selected{% endif %}>In Riparazione</option>
+                        <option value="rotto" {% if i.status == 'rotto' %}selected{% endif %}>Rotto</option>
+                        <option value="smarrito" {% if i.status == 'smarrito' %}selected{% endif %}>Smarrito</option>
+                      </select>
+                    </div>
+                    
                   </form>
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="6">Nessuna attrezzatura.</td></tr>
+              <tr><td colspan="3" class="text-center text-muted py-4">Nessuna attrezzatura registrata.</td></tr>
             {% endfor %}
             </tbody>
           </table>
         </div>
+        
       </div>
     </div>
   </div>
