@@ -1,29 +1,45 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h3 class="mb-3">{{ app_settings.company_name if app_settings else 'Accesso' }}</h3>
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+  <div class="col-md-6 col-lg-4">
+    
+    <div class="card shadow-lg border-0">
+      <div class="card-body p-4 p-sm-5">
+        
         {% if app_settings and app_settings.logo_path %}
-        <div class="text-center mb-3">
-          <img src="{{ url_for('static', filename=app_settings.logo_path) }}" style="max-height:80px; max-width:100%;">
+        <div class="text-center mb-4">
+          <img src="{{ url_for('static', filename=app_settings.logo_path) }}" alt="Logo Azienda" style="max-height:90px; max-width:100%; border-radius: 8px;">
         </div>
         {% endif %}
-        <form method="post">
+        
+        <h4 class="text-center fw-bold text-primary mb-4">
+          {{ app_settings.company_name if app_settings else 'Gestione Accessi' }}
+        </h4>
+        
+        <form method="post" action="{{ url_for('login') }}">
           <div class="mb-3">
-            <label class="form-label">Utente</label>
-            <input class="form-control" name="username" value="admin" required>
+            <label class="form-label fw-semibold text-secondary">Nome Utente</label>
+            <input type="text" class="form-control form-control-lg" name="username" placeholder="es. admin" required autofocus>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input class="form-control" type="password" name="password" required>
+          
+          <div class="mb-4">
+            <label class="form-label fw-semibold text-secondary">Password</label>
+            <input type="password" class="form-control form-control-lg" name="password" placeholder="••••••••" required>
           </div>
-          <button class="btn btn-primary w-100">Entra</button>
+          
+          <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm">
+            Accedi al Sistema
+          </button>
         </form>
-        <div class="mt-3 text-muted small">Utente predefinito: admin</div>
+        
+        <div class="mt-4 text-center text-muted small">
+          <p class="mb-1">Utente predefinito: <strong>admin</strong></p>
+          <span style="font-size: 0.85em;">&copy; 2026 Evolve Cloud FSM</span>
+        </div>
+        
       </div>
     </div>
+    
   </div>
 </div>
 {% endblock %}
