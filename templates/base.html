@@ -23,17 +23,21 @@
       {% endif %}
       <span>{{ app_settings.company_name if app_settings else 'Evolve Impianti Cloud' }}</span>
     </a>
-    <div class="navbar-nav flex-wrap">
-      <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a class="nav-link" href="{{ url_for('technicians') }}">Tecnici</a>
-      <a class="nav-link" href="{{ url_for('warehouse') }}">Magazzino</a>
-      <a class="nav-link" href="{{ url_for('transfers') }}">Bolle</a>
-      <a class="nav-link" href="{{ url_for('returns') }}">Rientri</a>
-      <a class="nav-link" href="{{ url_for('tools') }}">Attrezzature</a>
-      <a class="nav-link" href="{{ url_for('vans') }}">Furgoni</a>
-      <a class="nav-link" href="{{ url_for('charges') }}">Addebiti</a>
-      <a class="nav-link" href="{{ url_for('settings') }}">Impostazioni</a>
-      <a class="nav-link" href="{{ url_for('logout') }}">Esci</a>
+    
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <div class="navbar-nav ms-auto flex-wrap">
+        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a class="nav-link" href="{{ url_for('technicians') }}">Tecnici</a>
+        <a class="nav-link" href="{{ url_for('warehouse') }}">Magazzino</a>
+        <a class="nav-link" href="/tools">Attrezzature</a>
+        <a class="nav-link" href="/vans">Furgoni</a>
+        <a class="nav-link" href="/settings">Impostazioni</a>
+        <a class="nav-link text-danger fw-bold ms-lg-3" href="{{ url_for('logout') }}">Esci</a>
+      </div>
     </div>
   </div>
 </nav>
@@ -43,11 +47,18 @@
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
-        <div class="alert alert-{{ 'warning' if category=='danger' else category }}">{{ message }}</div>
+        {% set bs_class = 'danger' if category == 'error' else ('success' if category == 'success' else 'info') %}
+        <div class="alert alert-{{ bs_class }} alert-dismissible fade show shadow-sm" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
       {% endfor %}
     {% endif %}
   {% endwith %}
+  
   {% block content %}{% endblock %}
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
