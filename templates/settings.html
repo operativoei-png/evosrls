@@ -1,44 +1,62 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-6">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Impostazioni programma</h4>
-        <form method="post" enctype="multipart/form-data">
-          <div class="mb-3">
-            <label class="form-label">Nome azienda</label>
-            <input class="form-control" name="company_name" value="{{ settings_obj.company_name }}">
+        <h5 class="card-title fw-bold text-primary mb-4">⚙️ Impostazioni Software</h5>
+        
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('settings') }}">
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Nome Azienda</label>
+            <input type="text" class="form-control form-control-lg" name="company_name" value="{{ settings_obj.company_name }}" required>
+            <div class="form-text">Questo nome apparirà nella barra in alto e sui documenti stampati.</div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Prefisso bolla</label>
-            <input class="form-control" name="bolla_prefix" value="{{ settings_obj.bolla_prefix }}">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Logo</label>
+          
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Logo Aziendale</label>
             <input class="form-control" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg">
+            <div class="form-text">Usa un'immagine con sfondo trasparente (PNG o SVG) per un risultato ottimale.</div>
           </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" value="1" id="removeLogo" name="remove_logo">
-            <label class="form-check-label" for="removeLogo">Rimuovi logo attuale</label>
+          
+          {% if settings_obj.logo_path %}
+          <div class="form-check mb-4 bg-light p-3 rounded border">
+            <input class="form-check-input ms-1" type="checkbox" value="1" id="removeLogo" name="remove_logo">
+            <label class="form-check-label ms-2 text-danger fw-bold" for="removeLogo">
+              🗑️ Rimuovi il logo attuale
+            </label>
           </div>
-          <button class="btn btn-primary">Salva impostazioni</button>
+          {% endif %}
+          
+          <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">Salva Impostazioni</button>
         </form>
       </div>
     </div>
   </div>
 
   <div class="col-lg-6">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Anteprima</h4>
-        <div class="mb-3"><strong>{{ settings_obj.company_name }}</strong></div>
-        {% if settings_obj.logo_path %}
-          <img src="{{ url_for('static', filename=settings_obj.logo_path) }}" style="max-height:120px; max-width:100%;">
-        {% else %}
-          <div class="text-muted">Nessun logo caricato.</div>
-        {% endif %}
-        <div class="mt-3 text-muted small">Qui puoi cambiare logo, nome azienda e prefisso bolla.</div>
+        <h5 class="card-title fw-bold mb-4">👀 Anteprima Branding</h5>
+        
+        <div class="p-4 rounded" style="background-color: #212529;">
+          <div class="d-flex align-items-center gap-3 text-white">
+            {% if settings_obj.logo_path %}
+              <img src="{{ url_for('static', filename=settings_obj.logo_path) }}" alt="Logo" style="height: 50px; width: auto; object-fit: contain; background: white; border-radius: 8px; padding: 4px;">
+            {% else %}
+              <div class="bg-secondary rounded d-flex align-items-center justify-content-center" style="height: 50px; width: 50px;">
+                🏢
+              </div>
+            {% endif %}
+            <span class="fs-4 fw-bold">{{ settings_obj.company_name }}</span>
+          </div>
+        </div>
+
+        <div class="mt-4 text-muted small">
+          <p>L'anteprima mostra come apparirà il tuo brand all'interno del gestionale. Se il logo risulta schiacciato o poco visibile, prova a ritagliare i bordi vuoti dell'immagine prima di caricarla.</p>
+        </div>
+        
       </div>
     </div>
   </div>
