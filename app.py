@@ -17,7 +17,12 @@ login_manager = LoginManager()
 login_manager.login_view = "login"
 
 ALLOWED_CERT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
-
+@app.route("/charges")
+    @login_required
+    def charges():
+        # Recupera tutti gli addebiti ordinati dal più recente
+        all_charges = Charge.query.order_by(Charge.created_at.desc()).all()
+        return render_template("stampa_addebiti.html", items=all_charges)
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "evolve-industrial-2026")
@@ -111,7 +116,15 @@ class Van(db.Model):
     plate = db.Column(db.String(30), unique=True, nullable=False)
     model = db.Column(db.String(120))
     assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
-
+class Charge(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    description = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(50), default="Da Saldare")
+    
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
+    technician = db.relationship("Technician", backref="charges")
 # --- ROTTE E LOGICHE DI BUSINESS ---
 
 @login_manager.user_loader
