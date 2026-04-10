@@ -2,53 +2,42 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>{{ transfer.bolla_no }}</title>
+  <title>Bolla {{ transfer.bolla_no }}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #333; padding: 8px; font-size: 12px; }
-    h2, h3, p { margin: 0 0 10px 0; }
-    .top { display:flex; justify-content:space-between; align-items:flex-start; }
-    @media print { .no-print { display:none; } }
-  </style>
-</head>
-<body>
-  <div class="top">
-    <div>
-      <h2>{{ app_settings.company_name if app_settings else 'Evolve Impianti' }}</h2>
-      <h3>Bolla {{ transfer.bolla_no }}</h3>
-    </div>
-    <button class="no-print" onclick="window.print()">Stampa</button>
-  </div>
-
-  <p><strong>Tipo:</strong> {{ 'Consegna' if transfer.transfer_type == 'out' else 'Rientro' }}</p>
-  <p><strong>Data:</strong> {{ transfer.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
-  <p><strong>Tecnico:</strong> {{ transfer.technician.name if transfer.technician else '' }}</p>
-  <p><strong>Committente:</strong> {{ transfer.client }}</p>
-  <p><strong>Commessa:</strong> {{ transfer.job }}</p>
-  <p><strong>Note:</strong> {{ transfer.notes or '-' }}</p>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Categoria</th>
-        <th>Codice</th>
-        <th>Descrizione</th>
-        <th>Seriale</th>
-        <th>Q.tà</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for i in transfer.items %}
-      <tr>
-        <td>{{ i.category }}</td>
-        <td>{{ i.code }}</td>
-        <td>{{ i.description }}</td>
-        <td>{{ i.serial or '-' }}</td>
-        <td>{{ i.quantity }} {{ i.unit }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</body>
-</html>
+    /* Stili Base Documento */
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 40px; color: #333; font-size: 14px; line-height: 1.4; }
+    
+    /* Intestazione */
+    .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 20px; }
+    .company-name { font-size: 24px; font-weight: bold; color: #2c3e50; margin: 0; }
+    .doc-title { font-size: 18px; margin: 0; color: #555; text-align: right; text-transform: uppercase; }
+    .doc-number { font-size: 22px; font-weight: bold; color: #e74c3c; margin: 0; }
+    
+    /* Box Dati */
+    .info-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+    .info-box { width: 48%; border: 1px solid #ddd; padding: 15px; border-radius: 4px; background: #fafafa; box-sizing: border-box; }
+    .info-box p { margin: 5px 0; }
+    .info-box h4 { margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #2c3e50; }
+    
+    /* Tabella */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background-color: #f8f9fa; font-weight: bold; color: #2c3e50; }
+    tr:nth-child(even) { background-color: #fcfcfc; }
+    
+    /* Firme */
+    .signatures { display: flex; justify-content: space-between; margin-top: 80px; }
+    .signature-box { width: 40%; text-align: center; }
+    .signature-line { border-bottom: 1px solid #333; margin-top: 50px; }
+    
+    /* Pulsante Stampa */
+    .print-btn { background-color: #0d6efd; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 20px; }
+    .print-btn:hover { background-color: #0b5ed7; }
+    
+    /* Regole specifiche per la stampante */
+    @media print { 
+      .no-print { display: none !important; }
+      body { margin: 0; }
+      .info-box { background: transparent; border: 1px solid #000; }
+      th, td { border: 1px solid #000; }
+      th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact
