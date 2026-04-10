@@ -74,7 +74,6 @@ class Technician(db.Model):
     name = db.Column(db.String(120), unique=True, nullable=False)
     phone = db.Column(db.String(50), default="")
     notes = db.Column(db.String(255), default="")
-    # Relazioni
     certificates = db.relationship("Certificate", backref="technician", cascade="all, delete-orphan")
     items = db.relationship("WarehouseItem", backref="technician")
     tools = db.relationship("Tool", backref="technician")
@@ -98,7 +97,7 @@ class WarehouseItem(db.Model):
     quantity = db.Column(db.Integer, default=1)
     unit = db.Column(db.String(20), default="pz")
     min_stock = db.Column(db.Integer, default=0)
-    status = db.Column(db.String(20), default="generale") # generale, in_viaggio, installato
+    status = db.Column(db.String(20), default="generale") 
     assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"))
     client_default = db.Column(db.String(150))
     last_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -131,146 +130,7 @@ class Charge(db.Model):
 class Transfer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     bolla_no = db.Column(db.String(40), unique=True)
-    transfer_type = db.Column(db.String(10)) # out, in
+    transfer_type = db.Column(db.String(10)) 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     client = db.Column(db.String(150))
-    job = db.Column(db.String(150))
-    notes = db.Column(db.String(255))
-    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
-    technician = db.relationship("Technician")
-    items = db.relationship("TransferItem", backref="transfer")
-
-class TransferItem(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    transfer_id = db.Column(db.Integer, db.ForeignKey("transfer.id"))
-    category = db.Column(db.String(50))
-    code = db.Column(db.String(80))
-    description = db.Column(db.String(255))
-    serial = db.Column(db.String(120))
-    quantity = db.Column(db.Integer)
-    unit = db.Column(db.String(20))
-
-# --- ROTTE ---
-
-@login_manager.user_loader
-def load_user(user_id): return User.query.get(int(user_id))
-
-def register_routes(app):
-    @app.route("/")
-    def home(): return redirect(url_for("dashboard" if current_user.is_authenticated else "login"))
-
-    @app.route("/login", methods=["GET", "POST"])
-    def login():
-        if request.method == "POST":
-            user = User.query.filter_by(username=request.form.get("username")).first()
-            if user and user.check_password(request.form.get("password")):
-                login_user(user)
-                return redirect(url_for("dashboard"))
-            flash("Credenziali non valide", "error")
-        return render_template("login.html")
-
-    @app.route("/logout")
-    def logout(): logout_user(); return redirect(url_for("login"))
-
-    @app.route("/dashboard")
-    @login_required
-    def dashboard():
-        stats = {
-            "technicians": Technician.query.count(),
-            "items_general": WarehouseItem.query.filter_by(status="generale").count(),
-            "items_traveling": WarehouseItem.query.filter_by(status="in_viaggio").count(),
-            "items_installed": WarehouseItem.query.filter_by(status="installato").count(),
-            "open_charges": Charge.query.filter_by(status="aperto").count()
-        }
-        recent_assignments = WarehouseItem.query.filter_by(status="in_viaggio").order_by(WarehouseItem.last_update.desc()).limit(5).all()
-        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.created_at.desc()).limit(5).all()
-        return render_template("dashboard.html", stats=stats, recent_assignments=recent_assignments, recent_charges=recent_charges)
-
-    # --- MAGAZZINO ---
-    @app.route("/warehouse", methods=["GET", "POST"])
-    @login_required
-    def warehouse():
-        if request.method == "POST":
-            tech_id = request.form.get("technician_id")
-            # Generazione Numero Bolla
-            s = AppSetting.query.first()
-            bolla_no = f"{s.bolla_prefix}-{datetime.now().year}-{Transfer.query.count() + 1:04d}"
-            
-            new_transfer = Transfer(bolla_no=bolla_no, transfer_type="out", technician_id=tech_id,
-                                    client=request.form.get("client"), job=request.form.get("job"), notes=request.form.get("notes"))
-            db.session.add(new_transfer)
-            db.session.flush()
-
-            count = 0
-            # Logica Barcode Textarea
-            raw_serials = request.form.get("serials", "")
-            if raw_serials.strip():
-                serial_list = [s.strip() for s in re.split(r'[\n,;]+', raw_serials) if s.strip()]
-                for sn in serial_list:
-                    item = WarehouseItem.query.filter_by(serial=sn).first()
-                    if not item:
-                        item = WarehouseItem(serial=sn, code="NEW", description="Articolo da Barcode", status="in_viaggio", assigned_to=tech_id)
-                        db.session.add(item)
-                    else:
-                        item.status = "in_viaggio"
-                        item.assigned_to = tech_id
-                    db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
-                    count += 1
-
-            # Checkbox Manuali
-            item_ids = request.form.getlist("item_ids")
-            for i_id in item_ids:
-                item = WarehouseItem.query.get(i_id)
-                item.status = "in_viaggio"
-                item.assigned_to = tech_id
-                db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
-                count += 1
-
-            if count > 0:
-                db.session.commit()
-                flash(f"Bolla {bolla_no} creata. Trasferiti {count} articoli.", "success")
-            else:
-                db.session.rollback()
-                flash("Nessun articolo selezionato.", "error")
-            return redirect(url_for("warehouse"))
-
-        items = WarehouseItem.query.filter_by(status="generale").all()
-        technicians = Technician.query.all()
-        transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(10).all()
-        return render_template("warehouse.html", items=items, technicians=technicians, transfers=transfers)
-
-    @app.route("/magazzino_generale", methods=["GET", "POST"])
-    @login_required
-    def magazzino_generale():
-        if request.method == "POST":
-            new_item = WarehouseItem(
-                code=request.form.get("code"), category=request.form.get("category"),
-                description=request.form.get("description"), unit=request.form.get("unit"),
-                serialized=(request.form.get("serialized") == "si"),
-                serial=request.form.get("serial") if request.form.get("serialized") == "si" else None,
-                quantity=int(request.form.get("quantity") or 1),
-                min_stock=int(request.form.get("min_stock") or 0),
-                client_default=request.form.get("client_default"),
-                status="generale"
-            )
-            db.session.add(new_item)
-            db.session.commit()
-            flash("Articolo salvato.", "success")
-            return redirect(url_for("magazzino_generale"))
-        return render_template("magazzino_generale.html", items=WarehouseItem.query.filter_by(status="generale").all())
-
-    # --- TECNICI ---
-    @app.route("/technicians", methods=["GET", "POST"])
-    @login_required
-    def technicians():
-        if request.method == "POST":
-            db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
-            db.session.commit()
-            flash("Tecnico aggiunto.", "success")
-        return render_template("technicians.html", technicians=Technician.query.all())
-
-    @app.route("/technician/<int:tech_id>")
-    @login_required
-    def technician_detail(tech_id):
-        tech = Technician.query.get_or_404(tech_id)
-        mobile_items = WarehouseItem.query.filter_by(assigned_to=tech_id, status="in_viaggio").all()
+    job = db.Column(db
