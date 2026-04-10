@@ -1,81 +1,184 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 mt-2">
+  
   <div class="col-lg-4">
-    <div class="card shadow-sm mb-4">
+    
+    <div class="card shadow-sm border-0 mb-4">
       <div class="card-body">
-        <h4>Nuovo materiale</h4>
+        <h5 class="card-title fw-bold text-primary mb-4">📦 Nuovo Articolo in Sede</h5>
+        
         <form method="post">
-          <div class="row g-2">
-            <div class="col-6"><label class="form-label">Codice</label><input class="form-control" name="code" required></div>
-            <div class="col-6"><label class="form-label">Categoria</label><input class="form-control" name="category" value="materiale"></div>
-            <div class="col-12"><label class="form-label">Descrizione</label><input class="form-control" name="description" required></div>
-            <div class="col-4">
-              <label class="form-label">Serializzato</label>
-              <select class="form-select" name="serialized">
-                <option value="no">No</option>
-                <option value="si">Sì</option>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold small">Codice Articolo</label>
+              <input type="text" class="form-control" name="code" placeholder="es. CAV-01" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold small">Categoria</label>
+              <input type="text" class="form-control" name="category" value="Materiale">
+            </div>
+            
+            <div class="col-12">
+              <label class="form-label fw-semibold small">Descrizione Completa</label>
+              <input type="text" class="form-control" name="description" placeholder="es. Matassa cavo ethernet 100m" required>
+            </div>
+            
+            <div class="col-6">
+              <label class="form-label fw-semibold small text-danger">Gestione Serializzata?</label>
+              <select class="form-select border-danger" name="serialized" id="serializedSelect">
+                <option value="no" selected>No (Gestione a Q.tà)</option>
+                <option value="si">Sì (Pezzo Unico)</option>
               </select>
             </div>
-            <div class="col-8"><label class="form-label">Seriale</label><input class="form-control" name="serial"></div>
-            <div class="col-4"><label class="form-label">Quantità</label><input class="form-control" name="quantity" value="1"></div>
-            <div class="col-4"><label class="form-label">Unità</label><input class="form-control" name="unit" value="pz"></div>
-            <div class="col-4"><label class="form-label">Scorta min.</label><input class="form-control" name="min_stock" value="0"></div>
-            <div class="col-12"><label class="form-label">Committente predefinita</label><input class="form-control" name="client_default"></div>
-            <div class="col-12"><label class="form-label">Note</label><input class="form-control" name="notes"></div>
+            <div class="col-6">
+              <label class="form-label fw-semibold small">Seriale Univoco</label>
+              <input type="text" class="form-control" name="serial" id="serialInput" placeholder="N/A" readonly>
+            </div>
+            
+            <div class="col-4">
+              <label class="form-label fw-semibold small">Quantità</label>
+              <input type="number" class="form-control" name="quantity" id="qtyInput" value="1" min="1">
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold small">Unità di Misura</label>
+              <input type="text" class="form-control" name="unit" value="pz">
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold small">Scorta Minima</label>
+              <input type="number" class="form-control" name="min_stock" value="0" min="0">
+            </div>
+            
+            <div class="col-12">
+              <label class="form-label fw-semibold small">Committente Predefinito (Opzionale)</label>
+              <input type="text" class="form-control" name="client_default" placeholder="es. Telecom Italia">
+            </div>
+            
+            <div class="col-12">
+              <label class="form-label fw-semibold small">Note</label>
+              <textarea class="form-control" name="notes" rows="2" placeholder="Note aggiuntive..."></textarea>
+            </div>
           </div>
-          <button class="btn btn-primary mt-3">Salva</button>
+          
+          <button type="submit" class="btn btn-primary w-100 fw-bold mt-4 shadow-sm">Salva Articolo</button>
         </form>
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0">
       <div class="card-body">
-        <h4>Import / Export</h4>
-        <form method="post" action="{{ url_for('import_general') }}" enctype="multipart/form-data">
-          <label class="form-label">Importa Excel magazzino generale</label>
-          <input class="form-control mb-2" type="file" name="file" accept=".xlsx" required>
-          <button class="btn btn-outline-primary">Importa</button>
+        <h5 class="card-title fw-bold mb-3">🔄 Import / Export</h5>
+        
+        <form method="post" action="{{ url_for('import_general') }}" enctype="multipart/form-data" class="mb-3 p-3 bg-light rounded border">
+          <label class="form-label fw-semibold small text-muted text-uppercase">Importa Giacenze (Excel)</label>
+          <div class="input-group">
+            <input class="form-control form-control-sm" type="file" name="file" accept=".xlsx,.xls" required>
+            <button type="submit" class="btn btn-sm btn-success fw-bold">Importa</button>
+          </div>
         </form>
-        <a class="btn btn-outline-secondary mt-3" href="{{ url_for('export_general') }}">Esporta magazzino generale</a>
+        
+        <a class="btn btn-outline-secondary btn-sm w-100 fw-bold" href="{{ url_for('export_general') }}">
+          📥 Esporta Magazzino Generale
+        </a>
       </div>
     </div>
+    
   </div>
 
   <div class="col-lg-8">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 h-100">
       <div class="card-body">
-        <h4>Magazzino generale</h4>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <thead>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+          <h5 class="card-title fw-bold mb-0">Inventario Generale (In Sede)</h5>
+          
+          <div style="min-width: 250px;">
+            <input type="text" id="searchItem" class="form-control border-primary" placeholder="🔍 Cerca codice, descrizione o seriale..." onkeyup="filterInventory()">
+          </div>
+        </div>
+        
+        <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
+          <table class="table table-hover align-middle table-sm" id="inventoryTable">
+            <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
               <tr>
                 <th>Codice</th>
                 <th>Categoria</th>
                 <th>Descrizione</th>
-                <th>Seriale</th>
-                <th>Q.tà</th>
-                <th>Committente predef.</th>
+                <th>Seriale / Ser.</th>
+                <th class="text-center">Giacenza</th>
+                <th>Committente</th>
               </tr>
             </thead>
             <tbody>
             {% for i in items %}
               <tr>
-                <td>{{ i.code }}</td>
-                <td>{{ i.category }}</td>
+                <td class="fw-bold">{{ i.code }}</td>
+                <td><span class="badge bg-secondary">{{ i.category }}</span></td>
                 <td>{{ i.description }}</td>
-                <td>{{ i.serial or '-' }}</td>
-                <td>{{ i.quantity }} {{ i.unit }}</td>
+                
+                <td>
+                  {% if i.serial %}
+                    <span class="text-primary fw-bold">{{ i.serial }}</span>
+                  {% elif i.serialized %}
+                    <span class="badge bg-warning text-dark">Manca Seriale</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                
+                <td class="text-center fw-bold {% if i.quantity <= i.min_stock %}text-danger{% endif %}">
+                  {{ i.quantity }} {{ i.unit }}
+                  {% if i.quantity <= i.min_stock %}
+                    <br><small class="text-danger" style="font-size: 0.7em;">Sotto Scorta!</small>
+                  {% endif %}
+                </td>
                 <td>{{ i.client_default or '-' }}</td>
               </tr>
             {% else %}
-              <tr><td colspan="6">Nessun materiale.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted py-4">Nessun materiale presente nel magazzino generale.</td></tr>
             {% endfor %}
             </tbody>
           </table>
         </div>
+        
       </div>
     </div>
   </div>
 </div>
+
+<script>
+  // 1. Logica Toggle "Serializzato" (Sì/No)
+  document.getElementById('serializedSelect').addEventListener('change', function(e) {
+    const isSerialized = (e.target.value === 'si');
+    const qtyInput = document.getElementById('qtyInput');
+    const serialInput = document.getElementById('serialInput');
+    
+    if(isSerialized) {
+      qtyInput.value = 1;
+      qtyInput.readOnly = true;
+      serialInput.readOnly = false;
+      serialInput.required = true;
+      serialInput.placeholder = "Inserisci o spara il seriale";
+      serialInput.focus();
+    } else {
+      qtyInput.readOnly = false;
+      serialInput.value = "";
+      serialInput.readOnly = true;
+      serialInput.required = false;
+      serialInput.placeholder = "N/A";
+    }
+  });
+
+  // 2. Filtro Tabella Istantaneo
+  function filterInventory() {
+    let input = document.getElementById("searchItem");
+    let filter = input.value.toLowerCase();
+    let rows = document.querySelectorAll("#inventoryTable tbody tr");
+    
+    rows.forEach(row => {
+      if(row.cells.length === 1) return; // Salta la riga "Nessun materiale"
+      let textContent = row.textContent.toLowerCase();
+      row.style.display = textContent.includes(filter) ? "" : "none";
+    });
+  }
+</script>
 {% endblock %}
