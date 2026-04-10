@@ -19,33 +19,31 @@ def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "evolve-industrial-2026")
     
-    # Crea la cartella 'instance' (fondamentale per SQLite su Render)
+    # Cartelle necessarie
     os.makedirs(app.instance_path, exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads")
+    app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
+    os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
     
-    # DATABASE LOGIC: Usa PostgreSQL se presente, altrimenti SQLite locale
-    db_url = os.getenv("DATABASE_URL", "sqlite:///" + os.path.join(app.instance_path, "evolve.db"))
-    if db_url.startswith("postgres://"):
+    # Database: Priorità a PostgreSQL (se presente su Render), altrimenti SQLite
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        db_url = "sqlite:///" + os.path.join(app.instance_path, "evolve.db")
+    elif db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
         
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    
-    # Cartelle per caricamento file
-    app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads")
-    app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
-    os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
 
     db.init_app(app)
     login_manager.init_app(app)
 
     with app.app_context():
         db.create_all()
-        # Admin di default
         if not User.query.filter_by(username="admin").first():
             u = User(username="admin", role="admin")
             u.set_password("admin123!")
             db.session.add(u)
-        # Impostazioni azienda
         if not AppSetting.query.first():
             db.session.add(AppSetting())
         db.session.commit()
@@ -58,7 +56,6 @@ def create_app():
     return app
 
 # --- MODELLI ---
-
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -154,7 +151,6 @@ class TransferItem(db.Model):
     unit = db.Column(db.String(20))
 
 # --- ROTTE ---
-
 @login_manager.user_loader
 def load_user(user_id): return User.query.get(int(user_id))
 
@@ -196,12 +192,10 @@ def register_routes(app):
             tech_id = request.form.get("technician_id")
             s = AppSetting.query.first()
             bolla_no = f"{s.bolla_prefix}-{datetime.now().year}-{Transfer.query.count() + 1:04d}"
-            
             new_transfer = Transfer(bolla_no=bolla_no, transfer_type="out", technician_id=tech_id,
                                     client=request.form.get("client"), job=request.form.get("job"), notes=request.form.get("notes"))
             db.session.add(new_transfer)
             db.session.flush()
-
             count = 0
             raw_serials = request.form.get("serials", "")
             if raw_serials.strip():
@@ -216,7 +210,6 @@ def register_routes(app):
                         item.assigned_to = tech_id
                     db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
                     count += 1
-
             item_ids = request.form.getlist("item_ids")
             for i_id in item_ids:
                 item = WarehouseItem.query.get(i_id)
@@ -224,15 +217,12 @@ def register_routes(app):
                 item.assigned_to = tech_id
                 db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
                 count += 1
-
             if count > 0:
                 db.session.commit()
-                flash(f"Bolla {bolla_no} creata. Trasferiti {count} articoli.", "success")
+                flash(f"Bolla {bolla_no} creata.", "success")
             else:
                 db.session.rollback()
-                flash("Nessun articolo selezionato.", "error")
             return redirect(url_for("warehouse"))
-
         items = WarehouseItem.query.filter_by(status="generale").all()
         technicians = Technician.query.all()
         transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(10).all()
@@ -256,7 +246,8 @@ def register_routes(app):
             db.session.commit()
             flash("Articolo salvato.", "success")
             return redirect(url_for("magazzino_generale"))
-        return render_template("magazzino_generale.html", items=WarehouseItem.query.filter_by(status="generale").all())
+        items = WarehouseItem.query.filter_by(status="generale").all()
+        return render_template("magazzino_generale.html", items=items)
 
     @app.route("/technicians", methods=["GET", "POST"])
     @login_required
@@ -264,7 +255,6 @@ def register_routes(app):
         if request.method == "POST":
             db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
             db.session.commit()
-            flash("Tecnico aggiunto.", "success")
         return render_template("technicians.html", technicians=Technician.query.all())
 
     @app.route("/technician/<int:tech_id>")
@@ -281,26 +271,7 @@ def register_routes(app):
         item = WarehouseItem.query.get_or_404(item_id)
         item.status = "installato"
         db.session.commit()
-        flash(f"Articolo {item.serial} installato.", "success")
         return redirect(request.referrer)
-
-    @app.route("/upload_cert/<int:tech_id>", methods=["POST"])
-    @login_required
-    def upload_cert(tech_id):
-        file = request.files.get("cert_file")
-        if file:
-            filename = f"tech_{tech_id}_{uuid4().hex}{Path(file.filename).suffix}"
-            file.save(os.path.join(app.config["CERT_FOLDER"], filename))
-            db.session.add(Certificate(technician_id=tech_id, filename=filename, description=request.form.get("description")))
-            db.session.commit()
-            flash("Documento caricato.", "success")
-        return redirect(url_for("technician_detail", tech_id=tech_id))
-
-    @app.route("/view_cert/<int:cert_id>")
-    @login_required
-    def view_cert(cert_id):
-        cert = Certificate.query.get_or_404(cert_id)
-        return send_from_directory(app.config["CERT_FOLDER"], cert.filename)
 
     @app.route("/charges", methods=["GET", "POST"])
     @login_required
@@ -309,23 +280,8 @@ def register_routes(app):
             db.session.add(Charge(technician_id=request.form.get("technician_id"), description=request.form.get("description"),
                                   amount=float(request.form.get("amount") or 0), notes=request.form.get("notes"), status="aperto"))
             db.session.commit()
-            flash("Addebito registrato.", "success")
         items = Charge.query.order_by(Charge.created_at.desc()).all()
-        technicians = Technician.query.all()
-        return render_template("charges.html", items=items, technicians=technicians)
-
-    @app.route("/close_charge/<int:item_id>", methods=["POST"])
-    @login_required
-    def close_charge(item_id):
-        c = Charge.query.get_or_404(item_id)
-        c.status = "chiuso"
-        db.session.commit()
-        return redirect(url_for("charges"))
-
-    @app.route("/charges_print")
-    @login_required
-    def charges_print():
-        return render_template("stampa_addebiti.html", items=Charge.query.all())
+        return render_template("charges.html", items=items, technicians=Technician.query.all())
 
     @app.route("/returns", methods=["GET", "POST"])
     @login_required
@@ -334,23 +290,12 @@ def register_routes(app):
             for m_id in request.form.getlist("material_ids"):
                 item = WarehouseItem.query.get(m_id)
                 item.status, item.assigned_to = "generale", None
-            for t_id in request.form.getlist("tool_ids"):
-                tool = Tool.query.get(t_id)
-                tool.status, tool.assigned_to = request.form.get(f"tool_status_{t_id}"), None
-            for v_id in request.form.getlist("van_ids"):
-                Van.query.get(v_id).assigned_to = None
             db.session.commit()
-            flash("Rientro completato.", "success")
             return redirect(url_for("returns"))
-        
         t_id = request.args.get("technician_id")
         data = {"technicians": Technician.query.all(), "selected_tech_id": t_id}
         if t_id:
-            data.update({
-                "tech_materials": WarehouseItem.query.filter_by(assigned_to=t_id, status="in_viaggio").all(),
-                "tech_tools": Tool.query.filter_by(assigned_to=t_id).all(),
-                "tech_vans": Van.query.filter_by(assigned_to=t_id).all()
-            })
+            data.update({"tech_materials": WarehouseItem.query.filter_by(assigned_to=t_id, status="in_viaggio").all()})
         return render_template("returns.html", **data)
 
     @app.route("/tools", methods=["GET", "POST"])
@@ -362,15 +307,6 @@ def register_routes(app):
             db.session.commit()
         return render_template("tools.html", items=Tool.query.all(), technicians=Technician.query.all())
 
-    @app.route("/assign_tool/<int:item_id>", methods=["POST"])
-    @login_required
-    def assign_tool(item_id):
-        t = Tool.query.get_or_404(item_id)
-        t.assigned_to = request.form.get("technician_id") or None
-        t.status = request.form.get("status")
-        db.session.commit()
-        return redirect(url_for("tools"))
-
     @app.route("/vans", methods=["GET", "POST"])
     @login_required
     def vans():
@@ -378,14 +314,6 @@ def register_routes(app):
             db.session.add(Van(plate=request.form.get("plate").upper(), model=request.form.get("model"), assigned_to=request.form.get("assigned_to") or None))
             db.session.commit()
         return render_template("vans.html", items=Van.query.all(), technicians=Technician.query.all())
-
-    @app.route("/assign_van/<int:item_id>", methods=["POST"])
-    @login_required
-    def assign_van(item_id):
-        v = Van.query.get_or_404(item_id)
-        v.assigned_to = request.form.get("technician_id") or None
-        db.session.commit()
-        return redirect(url_for("vans"))
 
     @app.route("/import_excel", methods=["POST"])
     @login_required
@@ -395,10 +323,10 @@ def register_routes(app):
             wb = load_workbook(file)
             sheet = wb.active
             for row in sheet.iter_rows(min_row=2, values_only=True):
-                if row[0] and not WarehouseItem.query.filter_by(serial=str(row[0])).first():
-                    db.session.add(WarehouseItem(serial=str(row[0]), code=str(row[1]), description=str(row[2]), status="generale"))
+                if row[0]:
+                    db.session.add(WarehouseItem(serial=str(row[0]), code=str(row[1] or ""), description=str(row[2] or ""), status="generale"))
             db.session.commit()
-        return redirect(url_for("warehouse"))
+        return redirect(url_for("magazzino_generale"))
 
     @app.route("/settings", methods=["GET", "POST"])
     @login_required
@@ -407,22 +335,10 @@ def register_routes(app):
         if request.method == "POST":
             s.company_name = request.form.get("company_name")
             s.bolla_prefix = request.form.get("bolla_prefix")
-            file = request.files.get("logo_file")
-            if file:
-                fname = f"logo_{uuid4().hex}{Path(file.filename).suffix}"
-                file.save(os.path.join(app.config["UPLOAD_FOLDER"], fname))
-                s.logo_path = f"uploads/{fname}"
-            if request.form.get("remove_logo"): s.logo_path = ""
             db.session.commit()
         return render_template("settings.html", settings_obj=s)
 
-    @app.route("/transfer_detail/<int:transfer_id>")
-    @login_required
-    def transfer_detail(transfer_id):
-        return render_template("transfer_detail.html", transfer=Transfer.query.get_or_404(transfer_id))
-
-# --- BOOT ---
+# --- AVVIO ---
 app = create_app()
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
