@@ -1,40 +1,34 @@
 import os
+import re
 from datetime import datetime
-from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, flash, redirect, render_template, request, send_file, url_for, send_from_directory
+from flask import Flask, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import LoginManager, UserMixin, current_user, login_required, login_user, logout_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
 from openpyxl import load_workbook
 
-# --- CONFIGURAZIONE INIZIALE ---
+# --- INIZIALIZZAZIONE ---
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = "login"
-
-ALLOWED_CERT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "evolve-industrial-2026")
     
-    # FIX PER RENDER: Converte postgres:// in postgresql:// per SQLAlchemy
+    # FIX PER RENDER: Converte postgres:// in postgresql://
     db_url = os.getenv("DATABASE_URL", "sqlite:///" + os.path.join(app.instance_path, "evolve.db"))
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
         
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-    # Gestione Cartelle Upload
     app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads")
     app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
 
-    os.makedirs(app.instance_path, exist_ok=True)
     os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
 
     db.init_app(app)
@@ -42,16 +36,15 @@ def create_app():
 
     with app.app_context():
         db.create_all()
-        # Creazione Admin Default al primo avvio
+        # Utente Admin di sistema
         if not User.query.filter_by(username="admin").first():
             u = User(username="admin", role="admin")
             u.set_password("admin123!")
             db.session.add(u)
-            db.session.commit()
-        # Creazione Impostazioni Default
+        # Impostazioni Aziendali
         if not AppSetting.query.first():
             db.session.add(AppSetting())
-            db.session.commit()
+        db.session.commit()
 
     @app.context_processor
     def inject_branding():
@@ -60,7 +53,7 @@ def create_app():
     register_routes(app)
     return app
 
-# --- MODELLI DEL DATABASE ---
+# --- MODELLI ---
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -72,7 +65,7 @@ class User(UserMixin, db.Model):
 
 class AppSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    company_name = db.Column(db.String(150), default="Evolve Impianti Srls")
+    company_name = db.Column(db.String(150), default="Evolve Impianti")
     logo_path = db.Column(db.String(255), default="")
     bolla_prefix = db.Column(db.String(20), default="BOL")
 
@@ -81,10 +74,9 @@ class Technician(db.Model):
     name = db.Column(db.String(120), unique=True, nullable=False)
     phone = db.Column(db.String(50), default="")
     notes = db.Column(db.String(255), default="")
-    
     # Relazioni
     certificates = db.relationship("Certificate", backref="technician", cascade="all, delete-orphan")
-    mobile_items = db.relationship("WarehouseItem", backref="technician")
+    items = db.relationship("WarehouseItem", backref="technician")
     tools = db.relationship("Tool", backref="technician")
     vans = db.relationship("Van", backref="technician")
     charges = db.relationship("Charge", backref="technician")
@@ -98,25 +90,34 @@ class Certificate(db.Model):
 
 class WarehouseItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    serial = db.Column(db.String(120), unique=True, nullable=False, index=True)
     code = db.Column(db.String(80), nullable=False)
+    category = db.Column(db.String(50), default="Materiale")
     description = db.Column(db.String(255), nullable=False)
-    status = db.Column(db.String(20), default="generale") # "generale", "in_viaggio", "installato"
-    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
+    serial = db.Column(db.String(120), unique=True, index=True)
+    serialized = db.Column(db.Boolean, default=False)
+    quantity = db.Column(db.Integer, default=1)
+    unit = db.Column(db.String(20), default="pz")
+    min_stock = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default="generale") # generale, in_viaggio, installato
+    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"))
+    client_default = db.Column(db.String(150))
     last_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Tool(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(80), nullable=False)
+    serial = db.Column(db.String(120))
     description = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(40), default="disponibile")
-    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
+    charge_value = db.Column(db.Float, default=0.0)
+    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"))
 
 class Van(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     plate = db.Column(db.String(30), unique=True, nullable=False)
     model = db.Column(db.String(120))
-    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
+    status = db.Column(db.String(40), default="attivo")
+    assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"))
 
 class Charge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -124,20 +125,39 @@ class Charge(db.Model):
     description = db.Column(db.String(255), nullable=False)
     amount = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(50), default="aperto")
-    notes = db.Column(db.String(255), default="")
-    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"), nullable=True)
+    notes = db.Column(db.String(255))
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
 
-# --- ROTTE E LOGICHE DI BUSINESS ---
+class Transfer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bolla_no = db.Column(db.String(40), unique=True)
+    transfer_type = db.Column(db.String(10)) # out, in
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    client = db.Column(db.String(150))
+    job = db.Column(db.String(150))
+    notes = db.Column(db.String(255))
+    technician_id = db.Column(db.Integer, db.ForeignKey("technician.id"))
+    technician = db.relationship("Technician")
+    items = db.relationship("TransferItem", backref="transfer")
+
+class TransferItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transfer_id = db.Column(db.Integer, db.ForeignKey("transfer.id"))
+    category = db.Column(db.String(50))
+    code = db.Column(db.String(80))
+    description = db.Column(db.String(255))
+    serial = db.Column(db.String(120))
+    quantity = db.Column(db.Integer)
+    unit = db.Column(db.String(20))
+
+# --- ROTTE ---
 
 @login_manager.user_loader
 def load_user(user_id): return User.query.get(int(user_id))
 
 def register_routes(app):
-    
-    # --- AUTENTICAZIONE E HOME ---
     @app.route("/")
-    def home(): 
-        return redirect(url_for("dashboard" if current_user.is_authenticated else "login"))
+    def home(): return redirect(url_for("dashboard" if current_user.is_authenticated else "login"))
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -150,10 +170,7 @@ def register_routes(app):
         return render_template("login.html")
 
     @app.route("/logout")
-    @login_required
-    def logout(): 
-        logout_user()
-        return redirect(url_for("login"))
+    def logout(): logout_user(); return redirect(url_for("login"))
 
     @app.route("/dashboard")
     @login_required
@@ -162,57 +179,98 @@ def register_routes(app):
             "technicians": Technician.query.count(),
             "items_general": WarehouseItem.query.filter_by(status="generale").count(),
             "items_traveling": WarehouseItem.query.filter_by(status="in_viaggio").count(),
-            "items_installed": WarehouseItem.query.filter_by(status="installato").count()
+            "items_installed": WarehouseItem.query.filter_by(status="installato").count(),
+            "open_charges": Charge.query.filter_by(status="aperto").count()
         }
-        return render_template("dashboard.html", stats=stats)
+        recent_assignments = WarehouseItem.query.filter_by(status="in_viaggio").order_by(WarehouseItem.last_update.desc()).limit(5).all()
+        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.created_at.desc()).limit(5).all()
+        return render_template("dashboard.html", stats=stats, recent_assignments=recent_assignments, recent_charges=recent_charges)
 
-    # --- MAGAZZINO E BARCODE ---
-    @app.route("/warehouse")
+    # --- MAGAZZINO ---
+    @app.route("/warehouse", methods=["GET", "POST"])
     @login_required
     def warehouse():
-        items_generale = WarehouseItem.query.filter_by(status="generale").all()
-        technicians = Technician.query.all()
-        return render_template("warehouse.html", items=items_generale, technicians=technicians)
+        if request.method == "POST":
+            tech_id = request.form.get("technician_id")
+            # Generazione Numero Bolla
+            s = AppSetting.query.first()
+            bolla_no = f"{s.bolla_prefix}-{datetime.now().year}-{Transfer.query.count() + 1:04d}"
+            
+            new_transfer = Transfer(bolla_no=bolla_no, transfer_type="out", technician_id=tech_id,
+                                    client=request.form.get("client"), job=request.form.get("job"), notes=request.form.get("notes"))
+            db.session.add(new_transfer)
+            db.session.flush()
 
-    @app.route("/scan_barcode", methods=["POST"])
-    @login_required
-    def scan_barcode():
-        serial = request.form.get("serial")
-        tech_id = request.form.get("technician_id")
-        code = request.form.get("code", "N/A")
-        desc = request.form.get("description", "Articolo Sconosciuto")
+            count = 0
+            # Logica Barcode Textarea
+            raw_serials = request.form.get("serials", "")
+            if raw_serials.strip():
+                serial_list = [s.strip() for s in re.split(r'[\n,;]+', raw_serials) if s.strip()]
+                for sn in serial_list:
+                    item = WarehouseItem.query.filter_by(serial=sn).first()
+                    if not item:
+                        item = WarehouseItem(serial=sn, code="NEW", description="Articolo da Barcode", status="in_viaggio", assigned_to=tech_id)
+                        db.session.add(item)
+                    else:
+                        item.status = "in_viaggio"
+                        item.assigned_to = tech_id
+                    db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
+                    count += 1
 
-        if not serial:
-            flash("Errore: Seriale mancante.", "error")
-            return redirect(request.referrer or url_for("warehouse"))
-
-        item = WarehouseItem.query.filter_by(serial=serial).first()
-
-        if not item:
-            # Creazione nuovo seriale
-            new_item = WarehouseItem(serial=serial, code=code, description=desc, status="generale")
-            db.session.add(new_item)
-            flash(f"Caricato nuovo seriale {serial} in Magazzino Generale.", "success")
-        else:
-            # Aggiornamento stato seriale esistente
-            if item.status == "installato":
-                flash(f"Attenzione! L'articolo {serial} risulta già installato.", "error")
-            elif tech_id:
+            # Checkbox Manuali
+            item_ids = request.form.getlist("item_ids")
+            for i_id in item_ids:
+                item = WarehouseItem.query.get(i_id)
                 item.status = "in_viaggio"
                 item.assigned_to = tech_id
-                flash(f"Seriale {serial} trasferito al furgone del tecnico.", "success")
+                db.session.add(TransferItem(transfer_id=new_transfer.id, code=item.code, description=item.description, serial=item.serial, quantity=1))
+                count += 1
+
+            if count > 0:
+                db.session.commit()
+                flash(f"Bolla {bolla_no} creata. Trasferiti {count} articoli.", "success")
             else:
-                item.status = "generale"
-                item.assigned_to = None
-                flash(f"Seriale {serial} rientrato in Magazzino Generale.", "info")
+                db.session.rollback()
+                flash("Nessun articolo selezionato.", "error")
+            return redirect(url_for("warehouse"))
 
-        db.session.commit()
-        return redirect(request.referrer or url_for("warehouse"))
+        items = WarehouseItem.query.filter_by(status="generale").all()
+        technicians = Technician.query.all()
+        transfers = Transfer.query.order_by(Transfer.created_at.desc()).limit(10).all()
+        return render_template("warehouse.html", items=items, technicians=technicians, transfers=transfers)
 
-    @app.route("/install_item/<int:item_id>", methods=["POST"])
+    @app.route("/magazzino_generale", methods=["GET", "POST"])
     @login_required
-    def install_item(item_id):
-        item = WarehouseItem.query.get_or_404(item_id)
-        if item.status == "in_viaggio":
-            item.status = "installato"
+    def magazzino_generale():
+        if request.method == "POST":
+            new_item = WarehouseItem(
+                code=request.form.get("code"), category=request.form.get("category"),
+                description=request.form.get("description"), unit=request.form.get("unit"),
+                serialized=(request.form.get("serialized") == "si"),
+                serial=request.form.get("serial") if request.form.get("serialized") == "si" else None,
+                quantity=int(request.form.get("quantity") or 1),
+                min_stock=int(request.form.get("min_stock") or 0),
+                client_default=request.form.get("client_default"),
+                status="generale"
+            )
+            db.session.add(new_item)
             db.session.commit()
+            flash("Articolo salvato.", "success")
+            return redirect(url_for("magazzino_generale"))
+        return render_template("magazzino_generale.html", items=WarehouseItem.query.filter_by(status="generale").all())
+
+    # --- TECNICI ---
+    @app.route("/technicians", methods=["GET", "POST"])
+    @login_required
+    def technicians():
+        if request.method == "POST":
+            db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
+            db.session.commit()
+            flash("Tecnico aggiunto.", "success")
+        return render_template("technicians.html", technicians=Technician.query.all())
+
+    @app.route("/technician/<int:tech_id>")
+    @login_required
+    def technician_detail(tech_id):
+        tech = Technician.query.get_or_404(tech_id)
+        mobile_items = WarehouseItem.query.filter_by(assigned_to=tech_id, status="in_viaggio").all()
