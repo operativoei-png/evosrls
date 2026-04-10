@@ -19,16 +19,20 @@ def create_app():
     app = Flask(__name__, instance_relative_config=True)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "evolve-industrial-2026")
     
-    # FIX PER RENDER: Converte postgres:// in postgresql://
+    # Crea la cartella 'instance' (fondamentale per SQLite su Render)
+    os.makedirs(app.instance_path, exist_ok=True)
+    
+    # DATABASE LOGIC: Usa PostgreSQL se presente, altrimenti SQLite locale
     db_url = os.getenv("DATABASE_URL", "sqlite:///" + os.path.join(app.instance_path, "evolve.db"))
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
         
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    
+    # Cartelle per caricamento file
     app.config["UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads")
     app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
-
     os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
 
     db.init_app(app)
@@ -36,12 +40,12 @@ def create_app():
 
     with app.app_context():
         db.create_all()
-        # Utente Admin di sistema
+        # Admin di default
         if not User.query.filter_by(username="admin").first():
             u = User(username="admin", role="admin")
             u.set_password("admin123!")
             db.session.add(u)
-        # Impostazioni Aziendali
+        # Impostazioni azienda
         if not AppSetting.query.first():
             db.session.add(AppSetting())
         db.session.commit()
