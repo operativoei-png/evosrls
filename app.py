@@ -25,7 +25,7 @@ def create_app():
     app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
     os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
     
-    # Database: SQLite locale (ottimizzato per Render senza Postgres)
+    # Database: Priorità a PostgreSQL, altrimenti SQLite
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         db_url = "sqlite:///" + os.path.join(app.instance_path, "evolve.db")
@@ -101,6 +101,7 @@ class WarehouseItem(db.Model):
     status = db.Column(db.String(20), default="generale") 
     assigned_to = db.Column(db.Integer, db.ForeignKey("technician.id"))
     client_default = db.Column(db.String(150))
+    notes = db.Column(db.String(255))
     last_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Tool(db.Model):
@@ -182,7 +183,7 @@ def register_routes(app):
             "open_charges": Charge.query.filter_by(status="aperto").count()
         }
         recent_assignments = WarehouseItem.query.filter_by(status="in_viaggio").order_by(WarehouseItem.last_update.desc()).limit(5).all()
-        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.at.desc()).limit(5).all() if hasattr(Charge, 'at') else []
+        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.created_at.desc()).limit(5).all()
         return render_template("dashboard.html", stats=stats, recent_assignments=recent_assignments, recent_charges=recent_charges)
 
     @app.route("/warehouse", methods=["GET", "POST"])
@@ -240,6 +241,7 @@ def register_routes(app):
                 quantity=int(request.form.get("quantity") or 1),
                 min_stock=int(request.form.get("min_stock") or 0),
                 client_default=request.form.get("client_default"),
+                notes=request.form.get("notes"),
                 status="generale"
             )
             db.session.add(new_item)
@@ -255,6 +257,7 @@ def register_routes(app):
         if request.method == "POST":
             db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
             db.session.commit()
+            flash("Tecnico registrato.", "success")
         return render_template("technicians.html", technicians=Technician.query.all())
 
     @app.route("/technician/<int:tech_id>")
@@ -331,6 +334,19 @@ def register_routes(app):
             db.session.add(Van(plate=request.form.get("plate").upper(), model=request.form.get("model"), assigned_to=request.form.get("assigned_to") or None))
             db.session.commit()
         return render_template("vans.html", items=Van.query.all(), technicians=Technician.query.all())
+
+    @app.route("/import_excel", methods=["POST"])
+    @login_required
+    def import_excel():
+        file = request.files.get("excel_file")
+        if file:
+            wb = load_workbook(file)
+            sheet = wb.active
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if row[0]:
+                    db.session.add(WarehouseItem(serial=str(row[0]), code=str(row[1] or ""), description=str(row[2] or ""), status="generale"))
+            db.session.commit()
+        return redirect(url_for("magazzino_generale"))
 
     @app.route("/settings", methods=["GET", "POST"])
     @login_required
