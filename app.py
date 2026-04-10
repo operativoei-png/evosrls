@@ -25,7 +25,7 @@ def create_app():
     app.config["CERT_FOLDER"] = os.path.join(app.config["UPLOAD_FOLDER"], "attestati")
     os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
     
-    # Database: Priorità a PostgreSQL (se presente su Render), altrimenti SQLite
+    # Database: SQLite locale (ottimizzato per Render senza Postgres)
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         db_url = "sqlite:///" + os.path.join(app.instance_path, "evolve.db")
@@ -182,7 +182,7 @@ def register_routes(app):
             "open_charges": Charge.query.filter_by(status="aperto").count()
         }
         recent_assignments = WarehouseItem.query.filter_by(status="in_viaggio").order_by(WarehouseItem.last_update.desc()).limit(5).all()
-        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.created_at.desc()).limit(5).all()
+        recent_charges = Charge.query.filter_by(status="aperto").order_by(Charge.at.desc()).limit(5).all() if hasattr(Charge, 'at') else []
         return render_template("dashboard.html", stats=stats, recent_assignments=recent_assignments, recent_charges=recent_charges)
 
     @app.route("/warehouse", methods=["GET", "POST"])
@@ -234,111 +234,3 @@ def register_routes(app):
         if request.method == "POST":
             new_item = WarehouseItem(
                 code=request.form.get("code"), category=request.form.get("category"),
-                description=request.form.get("description"), unit=request.form.get("unit"),
-                serialized=(request.form.get("serialized") == "si"),
-                serial=request.form.get("serial") if request.form.get("serialized") == "si" else None,
-                quantity=int(request.form.get("quantity") or 1),
-                min_stock=int(request.form.get("min_stock") or 0),
-                client_default=request.form.get("client_default"),
-                status="generale"
-            )
-            db.session.add(new_item)
-            db.session.commit()
-            flash("Articolo salvato.", "success")
-            return redirect(url_for("magazzino_generale"))
-        items = WarehouseItem.query.filter_by(status="generale").all()
-        return render_template("magazzino_generale.html", items=items)
-
-    @app.route("/technicians", methods=["GET", "POST"])
-    @login_required
-    def technicians():
-        if request.method == "POST":
-            db.session.add(Technician(name=request.form.get("name"), phone=request.form.get("phone"), notes=request.form.get("notes")))
-            db.session.commit()
-        return render_template("technicians.html", technicians=Technician.query.all())
-
-    @app.route("/technician/<int:tech_id>")
-    @login_required
-    def technician_detail(tech_id):
-        tech = Technician.query.get_or_404(tech_id)
-        mobile_items = WarehouseItem.query.filter_by(assigned_to=tech_id, status="in_viaggio").all()
-        certs = Certificate.query.filter_by(technician_id=tech_id).all()
-        return render_template("technician_detail.html", tech=tech, mobile_items=mobile_items, certs=certs)
-
-    @app.route("/install_item/<int:item_id>", methods=["POST"])
-    @login_required
-    def install_item(item_id):
-        item = WarehouseItem.query.get_or_404(item_id)
-        item.status = "installato"
-        db.session.commit()
-        return redirect(request.referrer)
-
-    @app.route("/charges", methods=["GET", "POST"])
-    @login_required
-    def charges():
-        if request.method == "POST":
-            db.session.add(Charge(technician_id=request.form.get("technician_id"), description=request.form.get("description"),
-                                  amount=float(request.form.get("amount") or 0), notes=request.form.get("notes"), status="aperto"))
-            db.session.commit()
-        items = Charge.query.order_by(Charge.created_at.desc()).all()
-        return render_template("charges.html", items=items, technicians=Technician.query.all())
-
-    @app.route("/returns", methods=["GET", "POST"])
-    @login_required
-    def returns():
-        if request.method == "POST":
-            for m_id in request.form.getlist("material_ids"):
-                item = WarehouseItem.query.get(m_id)
-                item.status, item.assigned_to = "generale", None
-            db.session.commit()
-            return redirect(url_for("returns"))
-        t_id = request.args.get("technician_id")
-        data = {"technicians": Technician.query.all(), "selected_tech_id": t_id}
-        if t_id:
-            data.update({"tech_materials": WarehouseItem.query.filter_by(assigned_to=t_id, status="in_viaggio").all()})
-        return render_template("returns.html", **data)
-
-    @app.route("/tools", methods=["GET", "POST"])
-    @login_required
-    def tools():
-        if request.method == "POST":
-            db.session.add(Tool(code=request.form.get("code"), serial=request.form.get("serial"), description=request.form.get("description"),
-                                charge_value=float(request.form.get("charge_value") or 0), assigned_to=request.form.get("assigned_to") or None))
-            db.session.commit()
-        return render_template("tools.html", items=Tool.query.all(), technicians=Technician.query.all())
-
-    @app.route("/vans", methods=["GET", "POST"])
-    @login_required
-    def vans():
-        if request.method == "POST":
-            db.session.add(Van(plate=request.form.get("plate").upper(), model=request.form.get("model"), assigned_to=request.form.get("assigned_to") or None))
-            db.session.commit()
-        return render_template("vans.html", items=Van.query.all(), technicians=Technician.query.all())
-
-    @app.route("/import_excel", methods=["POST"])
-    @login_required
-    def import_excel():
-        file = request.files.get("excel_file")
-        if file:
-            wb = load_workbook(file)
-            sheet = wb.active
-            for row in sheet.iter_rows(min_row=2, values_only=True):
-                if row[0]:
-                    db.session.add(WarehouseItem(serial=str(row[0]), code=str(row[1] or ""), description=str(row[2] or ""), status="generale"))
-            db.session.commit()
-        return redirect(url_for("magazzino_generale"))
-
-    @app.route("/settings", methods=["GET", "POST"])
-    @login_required
-    def settings():
-        s = AppSetting.query.first()
-        if request.method == "POST":
-            s.company_name = request.form.get("company_name")
-            s.bolla_prefix = request.form.get("bolla_prefix")
-            db.session.commit()
-        return render_template("settings.html", settings_obj=s)
-
-# --- AVVIO ---
-app = create_app()
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
